@@ -1,0 +1,32 @@
+<%- include('partials/header', { title: 'Sign up' }) %>
+
+<div class="container">
+  <div class="form-card">
+    <h2>Create your account</h2>
+    <p class="helper-note" style="margin-top:0;margin-bottom:20px;">Just enough to place your order and keep you posted.</p>
+    <% if (error) { %><div class="error-msg"><%= error %></div><% } %>
+    <form method="POST" action="/signup">
+      <input type="hidden" name="redirectTo" value="<%= redirectTo %>">
+      <div class="field">
+        <label>Full name</label>
+        <input type="text" name="name" required>
+      </div>
+      <div class="field">
+        <label>Email</label>
+        <input type="email" name="email" required>
+      </div>
+      <div class="field">
+        <label>Phone (optional)</label>
+        <input type="tel" name="phone">
+      </div>
+      <div class="field">
+        <label>Password</label>
+        <input type="password" name="password" required minlength="6">
+      </div>
+      <button type="submit" class="btn btn-primary btn-block">Create account</button>
+    </form>
+    <p class="helper-note">Already have an account? <a href="/login?redirectTo=<%= encodeURIComponent(redirectTo) %>" style="text-decoration:underline;">Log in</a></p>
+  </div>
+</div>
+
+<%- include('partials/footer') %>

@@ -1,0 +1,63 @@
+<%- include('partials/header', { title: 'Shop' }) %>
+
+<section class="hero">
+  <div class="container">
+    <span class="eyebrow">Shirts &middot; Tops &middot; Hoodies</span>
+    <h1>Wear the story before<br>everyone else does.</h1>
+    <p>Browse what's in the shop today and what's coming next — no account needed to look. You'll only need one when you're ready to order.</p>
+  </div>
+</section>
+
+<div class="container">
+
+  <section class="section" id="shop">
+    <div class="section-head">
+      <h2>Available now</h2>
+      <span class="tag">Ships within a week</span>
+    </div>
+    <% if (available.length === 0) { %>
+      <div class="empty-state">Nothing in stock right now — check back soon.</div>
+    <% } else { %>
+      <div class="grid">
+        <% available.forEach(p => { %>
+          <a class="card" href="/product/<%= p.id %>">
+            <div class="thumb" style="background-image:url('<%= p.image_url %>')"></div>
+            <div class="body">
+              <h3><%= p.name %></h3>
+              <p class="desc"><%= p.description ? p.description.slice(0, 70) : '' %></p>
+              <div class="price"><%= formatPrice(p.price, p.currency) %></div>
+            </div>
+          </a>
+        <% }) %>
+      </div>
+    <% } %>
+  </section>
+
+  <section class="section" id="unreleased">
+    <div class="section-head">
+      <h2>Coming soon</h2>
+      <span class="tag">Preview the next drop</span>
+    </div>
+    <% if (unreleased.length === 0) { %>
+      <div class="empty-state">No upcoming pieces revealed yet — stay tuned.</div>
+    <% } else { %>
+      <div class="grid">
+        <% unreleased.forEach(p => { %>
+          <a class="card" href="/product/<%= p.id %>">
+            <div class="thumb" style="background-image:url('<%= p.image_url %>')">
+              <span class="badge <%= p.allow_preorder ? 'preorder' : '' %>"><%= p.allow_preorder ? 'Pre-order open' : 'Coming soon' %></span>
+            </div>
+            <div class="body">
+              <h3><%= p.name %></h3>
+              <p class="desc"><%= p.description ? p.description.slice(0, 70) : '' %></p>
+              <div class="price"><%= formatPrice(p.price, p.currency) %></div>
+            </div>
+          </a>
+        <% }) %>
+      </div>
+    <% } %>
+  </section>
+
+</div>
+
+<%- include('partials/footer') %>

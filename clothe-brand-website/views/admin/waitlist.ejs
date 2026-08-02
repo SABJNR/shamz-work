@@ -1,0 +1,27 @@
+<%- include('../partials/header', { title: 'Admin · Waitlist' }) %>
+
+<div class="admin-shell">
+  <%- include('./partials/sidebar', { active: 'waitlist' }) %>
+  <div class="admin-main">
+    <div class="section-head"><h2>Waitlist</h2></div>
+    <% if (entries.length === 0) { %>
+      <div class="empty-state">No one has joined a waitlist yet.</div>
+    <% } else { %>
+      <table>
+        <thead><tr><th>Customer</th><th>Email</th><th>Product</th><th>Joined</th></tr></thead>
+        <tbody>
+          <% entries.forEach(e => { %>
+            <tr>
+              <td><%= e.customer_name %></td>
+              <td><%= e.customer_email %></td>
+              <td><%= e.product_name %></td>
+              <td><%= new Date(e.created_at).toLocaleDateString() %></td>
+            </tr>
+          <% }) %>
+        </tbody>
+      </table>
+    <% } %>
+  </div>
+</div>
+
+<%- include('../partials/footer') %>

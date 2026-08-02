@@ -1,0 +1,40 @@
+<%- include('../partials/header', { title: 'Admin · Orders' }) %>
+
+<div class="admin-shell">
+  <%- include('./partials/sidebar', { active: 'orders' }) %>
+  <div class="admin-main">
+    <div class="section-head"><h2>Orders</h2></div>
+    <% if (orders.length === 0) { %>
+      <div class="empty-state">No orders yet.</div>
+    <% } else { %>
+      <table>
+        <thead>
+          <tr><th>Customer</th><th>Contact</th><th>Item</th><th>Type</th><th>Size / Qty</th><th>Status</th><th>Placed</th></tr>
+        </thead>
+        <tbody>
+          <% orders.forEach(o => { %>
+            <tr>
+              <td><%= o.customer_name %></td>
+              <td><%= o.customer_email %><br><%= o.customer_phone || '' %></td>
+              <td><%= o.product_name %></td>
+              <td><%= o.type === 'preorder' ? 'Pre-order' : 'Order' %></td>
+              <td><%= o.size || '—' %> / <%= o.quantity %></td>
+              <td>
+                <form method="POST" action="/admin/orders/<%= o.id %>/status?_method=PUT" style="display:flex;gap:6px;align-items:center;">
+                  <select name="status" onchange="this.form.submit()">
+                    <% ['pending_payment','confirmed','shipped','cancelled'].forEach(s => { %>
+                      <option value="<%= s %>" <%= o.status === s ? 'selected' : '' %>><%= s.replace('_',' ') %></option>
+                    <% }) %>
+                  </select>
+                </form>
+              </td>
+              <td><%= new Date(o.created_at).toLocaleDateString() %></td>
+            </tr>
+          <% }) %>
+        </tbody>
+      </table>
+    <% } %>
+  </div>
+</div>
+
+<%- include('../partials/footer') %>

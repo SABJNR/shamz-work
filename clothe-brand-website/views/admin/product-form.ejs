@@ -1,0 +1,57 @@
+<%- include('../partials/header', { title: product ? 'Edit product' : 'Add product' }) %>
+
+<div class="admin-shell">
+  <%- include('./partials/sidebar', { active: 'products' }) %>
+  <div class="admin-main" style="max-width:640px;">
+    <div class="section-head"><h2><%= product ? 'Edit product' : 'Add a product' %></h2></div>
+
+    <form method="POST" action="<%= product ? '/admin/products/' + product.id + '?_method=PUT' : '/admin/products' %>" enctype="multipart/form-data">
+      <div class="field">
+        <label>Product name</label>
+        <input type="text" name="name" value="<%= product ? product.name : '' %>" required>
+      </div>
+      <div class="field">
+        <label>Description</label>
+        <textarea name="description"><%= product ? product.description : '' %></textarea>
+      </div>
+      <div class="field">
+        <label>Price (in Naira, e.g. 45000)</label>
+        <input type="number" step="0.01" name="price" value="<%= product ? (product.price/100) : '' %>" required>
+      </div>
+      <div class="field">
+        <label>Currency</label>
+        <input type="text" name="currency" value="<%= product ? product.currency : 'NGN' %>">
+      </div>
+      <div class="field">
+        <label>Available sizes (comma separated)</label>
+        <input type="text" name="sizes" value="<%= product ? product.sizes : 'S,M,L,XL' %>">
+      </div>
+      <div class="field">
+        <label>Image — upload a file</label>
+        <input type="file" name="image" accept="image/*">
+      </div>
+      <div class="field">
+        <label>...or paste an image URL (used if no file uploaded)</label>
+        <input type="text" name="image_url" value="<%= product ? product.image_url : '' %>" placeholder="https://...">
+      </div>
+      <div class="field">
+        <label>Status</label>
+        <select name="status" id="statusSelect" onchange="document.getElementById('preorderField').style.display = this.value === 'unreleased' ? 'block' : 'none';">
+          <option value="available" <%= product && product.status === 'available' ? 'selected' : '' %>>Available now</option>
+          <option value="unreleased" <%= product && product.status === 'unreleased' ? 'selected' : '' %>>Unreleased / coming soon</option>
+        </select>
+      </div>
+      <div class="field" id="preorderField" style="display:<%= product && product.status === 'unreleased' ? 'block' : 'none' %>;">
+        <label style="display:flex;align-items:center;gap:8px;text-transform:none;letter-spacing:0;">
+          <input type="checkbox" name="allow_preorder" value="1" style="width:auto;" <%= product && product.allow_preorder ? 'checked' : '' %>>
+          Allow customers to pre-order this before release
+        </label>
+        <p class="helper-note" style="margin-top:6px;">If unchecked, customers can only preview this item and join a "notify me" waitlist.</p>
+      </div>
+
+      <button type="submit" class="btn btn-primary btn-block"><%= product ? 'Save changes' : 'Add product' %></button>
+    </form>
+  </div>
+</div>
+
+<%- include('../partials/footer') %>

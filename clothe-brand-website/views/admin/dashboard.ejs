@@ -1,0 +1,41 @@
+<%- include('../partials/header', { title: 'Admin · Products' }) %>
+
+<div class="admin-shell">
+  <%- include('./partials/sidebar', { active: 'products' }) %>
+  <div class="admin-main">
+    <div class="stat-row">
+      <div class="stat-box"><div class="num"><%= products.length %></div><div class="label">Products</div></div>
+      <div class="stat-box"><div class="num"><%= orderCount %></div><div class="label">Orders</div></div>
+      <div class="stat-box"><div class="num"><%= waitlistCount %></div><div class="label">Waitlist signups</div></div>
+    </div>
+
+    <div class="section-head">
+      <h2>Products</h2>
+      <a href="/admin/products/new" class="btn btn-primary btn-small">+ Add product</a>
+    </div>
+
+    <table>
+      <thead>
+        <tr><th>Name</th><th>Price</th><th>Status</th><th>Pre-order</th><th></th></tr>
+      </thead>
+      <tbody>
+        <% products.forEach(p => { %>
+          <tr>
+            <td><%= p.name %></td>
+            <td><%= formatPrice(p.price, p.currency) %></td>
+            <td><span class="status-tag status-<%= p.status %>"><%= p.status %></span></td>
+            <td><%= p.status === 'unreleased' && p.allow_preorder ? 'Yes' : '—' %></td>
+            <td style="white-space:nowrap;">
+              <a href="/admin/products/<%= p.id %>/edit" class="btn btn-secondary btn-small">Edit</a>
+              <form method="POST" action="/admin/products/<%= p.id %>?_method=DELETE" style="display:inline" onsubmit="return confirm('Delete this product?');">
+                <button type="submit" class="btn btn-danger btn-small">Delete</button>
+              </form>
+            </td>
+          </tr>
+        <% }) %>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<%- include('../partials/footer') %>
