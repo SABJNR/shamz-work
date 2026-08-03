@@ -58,8 +58,13 @@ function requireLogin(req, res, next) {
   next();
 }
 function requireAdmin(req, res, next) {
-  if (!req.session.user || !req.session.user.is_admin) {
-    return res.redirect('/admin/login');
+  if (!req.session.user) {
+    req.session.redirectTo = req.originalUrl;
+    return res.redirect('/login');
+  }
+  if (!req.session.user.is_admin) {
+    // Logged in, but as a regular customer — not authorized for admin pages.
+    return res.redirect('/');
   }
   next();
 }
@@ -112,6 +117,15 @@ app.post('/login', (req, res) => {
     return res.render('login', { error: 'Invalid email or password.', redirectTo });
   }
   req.session.user = { id: user.id, name: user.name, email: user.email, is_admin: user.is_admin };
+
+  // Admin accounts always land on the admin dashboard, regardless of where
+  // they logged in from. Everyone else goes to wherever they were headed
+  // (or the shop homepage by default).
+  if (user.is_admin) {
+    delete req.session.redirectTo;
+    return res.redirect('/admin');
+  }
+
   const dest = req.session.redirectTo || (redirectTo && redirectTo.startsWith('/') ? redirectTo : '/');
   delete req.session.redirectTo;
   res.redirect(dest);
@@ -164,20 +178,13 @@ app.get('/my-orders', requireLogin, (req, res) => {
 });
 
 // =====================================================
-// ADMIN — separate login, manage products & view orders
+// ADMIN — same login as customers; admins are auto-routed
+// here after logging in (see /login above). This route is
+// kept only so old bookmarks/links still work.
 // =====================================================
 
-app.get('/admin/login', (req, res) => res.render('admin/login', { error: null }));
-
-app.post('/admin/login', (req, res) => {
-  const { email, password } = req.body;
-  const user = db.users.findAdminByEmail(email || '');
-  if (!user || !bcrypt.compareSync(password, user.password_hash)) {
-    return res.render('admin/login', { error: 'Invalid admin credentials.' });
-  }
-  req.session.user = { id: user.id, name: user.name, email: user.email, is_admin: 1 };
-  res.redirect('/admin');
-});
+app.get('/admin/login', (req, res) => res.redirect('/login?redirectTo=/admin'));
+app.post('/admin/login', (req, res) => res.redirect(307, '/login'));
 
 app.get('/admin', requireAdmin, (req, res) => {
   res.render('admin/dashboard', {

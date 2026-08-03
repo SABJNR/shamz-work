@@ -14,7 +14,11 @@
         <a href="/">Shop</a>
         <a href="/#unreleased">Coming Soon</a>
         <% if (currentUser) { %>
-          <a href="/my-orders">My Orders</a>
+          <% if (currentUser.is_admin) { %>
+            <a href="/admin">Admin Panel</a>
+          <% } else { %>
+            <a href="/my-orders">My Orders</a>
+          <% } %>
           <span>Hi, <%= currentUser.name.split(' ')[0] %></span>
           <form method="POST" action="/logout" style="display:inline">
             <button type="submit" class="pill" style="background:none;border:1px solid rgba(247,242,233,0.4);color:inherit;cursor:pointer;font:inherit;">Log out</button>
