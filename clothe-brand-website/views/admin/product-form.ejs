@@ -26,14 +26,28 @@
         <label>Available sizes (comma separated)</label>
         <input type="text" name="sizes" value="<%= product ? product.sizes : 'S,M,L,XL' %>">
       </div>
-      <div class="field">
-        <label>Image — upload a file</label>
-        <input type="file" name="image" accept="image/*">
-      </div>
-      <div class="field">
-        <label>...or paste an image URL (used if no file uploaded)</label>
-        <input type="text" name="image_url" value="<%= product ? product.image_url : '' %>" placeholder="https://...">
-      </div>
+      <% if (product && product.image_url) { %>
+        <div class="field">
+          <label>Current image</label>
+          <img src="<%= product.image_url %>" alt="" style="max-width:160px;display:block;border:1px solid var(--line);">
+        </div>
+      <% } %>
+      <% if (uploadsEnabled) { %>
+        <div class="field">
+          <label>Image — upload a file</label>
+          <input type="file" name="image" accept="image/*">
+        </div>
+        <div class="field">
+          <label>...or paste an image URL (used if no file uploaded)</label>
+          <input type="text" name="image_url" value="<%= product ? product.image_url : '' %>" placeholder="https://...">
+        </div>
+      <% } else { %>
+        <div class="field">
+          <label>Image URL</label>
+          <input type="text" name="image_url" value="<%= product ? product.image_url : '' %>" placeholder="https://...">
+          <p class="helper-note" style="margin-top:6px;">Direct file upload isn't set up yet — paste a link to an image instead (e.g. from your phone via <a href="https://postimages.org" target="_blank" style="text-decoration:underline;">postimages.org</a>). Ask about enabling direct uploads if you'd rather do that.</p>
+        </div>
+      <% } %>
       <div class="field">
         <label>Status</label>
         <select name="status" id="statusSelect" onchange="document.getElementById('preorderField').style.display = this.value === 'unreleased' ? 'block' : 'none';">

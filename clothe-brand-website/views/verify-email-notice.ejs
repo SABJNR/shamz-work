@@ -1,0 +1,19 @@
+<%- include('partials/header', { title: 'Verify your email' }) %>
+
+<div class="container">
+  <div class="form-card" style="text-align:center;">
+    <h2>Check your inbox 📩</h2>
+    <p>We sent a verification link to <strong><%= user.email %></strong>.</p>
+    <p class="helper-note">Click the link in that email to activate your account. You can browse the shop while you wait, but you'll need to verify before placing an order.</p>
+
+    <form method="POST" action="/resend-verification" style="margin-top:20px;">
+      <button type="submit" class="btn btn-secondary">Resend verification email</button>
+    </form>
+
+    <p style="margin-top:24px;">
+      <a href="<%= continueTo %>" style="text-decoration:underline;font-size:14px;">Continue browsing</a>
+    </p>
+  </div>
+</div>
+
+<%- include('partials/footer') %>

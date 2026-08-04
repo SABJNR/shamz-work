@@ -1,0 +1,41 @@
+<%- include('../partials/header', { title: 'Admin Accounts' }) %>
+
+<div class="admin-shell">
+  <%- include('./partials/sidebar', { active: 'settings' }) %>
+  <div class="admin-main">
+    <div class="section-head"><h2>Admin accounts</h2></div>
+
+    <table style="margin-bottom:36px;">
+      <thead><tr><th>Name</th><th>Email</th><th>Added</th></tr></thead>
+      <tbody>
+        <% admins.forEach(a => { %>
+          <tr><td><%= a.name %></td><td><%= a.email %></td><td><%= new Date(a.created_at).toLocaleDateString() %></td></tr>
+        <% }) %>
+      </tbody>
+    </table>
+
+    <div class="form-card" style="margin:0;max-width:440px;">
+      <h2 style="font-size:20px;">Add a new admin</h2>
+      <p class="helper-note" style="margin-top:0;">Only give this access to people you trust — they'll have full control over products and orders.</p>
+      <% if (error) { %><div class="error-msg"><%= error %></div><% } %>
+      <% if (success) { %><div class="error-msg" style="background:#dcece0;color:#1e5c34;border-left-color:#1e5c34;">Admin account created ✓</div><% } %>
+      <form method="POST" action="/admin/admins">
+        <div class="field">
+          <label>Full name</label>
+          <input type="text" name="name" required>
+        </div>
+        <div class="field">
+          <label>Email</label>
+          <input type="email" name="email" required>
+        </div>
+        <div class="field">
+          <label>Password</label>
+          <input type="password" name="password" required minlength="6">
+        </div>
+        <button type="submit" class="btn btn-primary btn-block">Create admin account</button>
+      </form>
+    </div>
+  </div>
+</div>
+
+<%- include('../partials/footer') %>

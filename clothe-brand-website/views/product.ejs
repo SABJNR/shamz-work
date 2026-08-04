@@ -1,5 +1,12 @@
 <%- include('partials/header', { title: product.name }) %>
 
+<%
+  const isVerified = currentUser && !currentUser.is_admin && currentUser.email_verified === 1;
+  const prefillAddress = profileUser && profileUser.address
+    ? [profileUser.address, profileUser.city, profileUser.state].filter(Boolean).join(', ')
+    : '';
+%>
+
 <div class="container">
   <div class="product-detail">
     <div class="thumb" style="background-image:url('<%= product.image_url %>')"></div>
@@ -13,80 +20,66 @@
       <div class="price"><%= formatPrice(product.price, product.currency) %></div>
       <p class="desc"><%= product.description %></p>
 
-      <% if (product.status === 'available') { %>
-        <!-- Available now: order directly (account required) -->
-        <form method="POST" action="/order/<%= product.id %>">
-          <div class="field">
-            <label>Size</label>
-            <select name="size">
-              <% product.sizes.split(',').forEach(s => { %>
-                <option value="<%= s.trim() %>"><%= s.trim() %></option>
-              <% }) %>
-            </select>
-          </div>
-          <div class="field">
-            <label>Quantity</label>
-            <input type="number" name="quantity" value="1" min="1">
-          </div>
-          <div class="field">
-            <label>Shipping address</label>
-            <textarea name="shipping_address" placeholder="Where should we deliver this?" required></textarea>
-          </div>
-          <div class="field">
-            <label>Note (optional)</label>
-            <textarea name="note" placeholder="Anything else we should know?"></textarea>
-          </div>
-          <% if (currentUser) { %>
-            <button type="submit" class="btn btn-primary btn-block">Place order</button>
-            <p class="helper-note">Payment isn't collected online yet — we'll reach out to confirm payment and delivery details.</p>
-          <% } %>
-        </form>
-        <% if (!currentUser) { %>
-          <a href="/login?redirectTo=/product/<%= product.id %>" class="btn btn-primary btn-block">Log in to order</a>
-          <p class="helper-note">New here? <a href="/signup?redirectTo=/product/<%= product.id %>" style="text-decoration:underline;">Create an account</a> — it only takes a minute.</p>
-        <% } %>
+      <% if (product.status === 'available' || (product.status === 'unreleased' && product.allow_preorder)) { %>
+        <% const isPreorder = product.status === 'unreleased'; %>
 
-      <% } else if (product.allow_preorder) { %>
-        <!-- Unreleased but pre-orders open -->
-        <form method="POST" action="/order/<%= product.id %>">
-          <div class="field">
-            <label>Size</label>
-            <select name="size">
-              <% product.sizes.split(',').forEach(s => { %>
-                <option value="<%= s.trim() %>"><%= s.trim() %></option>
-              <% }) %>
-            </select>
-          </div>
-          <div class="field">
-            <label>Quantity</label>
-            <input type="number" name="quantity" value="1" min="1">
-          </div>
-          <div class="field">
-            <label>Shipping address</label>
-            <textarea name="shipping_address" placeholder="Where should we deliver this?" required></textarea>
-          </div>
-          <% if (currentUser) { %>
-            <button type="submit" class="btn btn-ochre btn-block">Reserve with a pre-order</button>
-            <p class="helper-note">This is a pre-order for an unreleased piece — production and ship dates will be confirmed by email.</p>
-          <% } %>
-        </form>
         <% if (!currentUser) { %>
-          <a href="/login?redirectTo=/product/<%= product.id %>" class="btn btn-ochre btn-block">Log in to pre-order</a>
+          <a href="/login?redirectTo=/product/<%= product.id %>" class="btn <%= isPreorder ? 'btn-ochre' : 'btn-primary' %> btn-block"><%= isPreorder ? 'Log in to pre-order' : 'Log in to order' %></a>
           <p class="helper-note">New here? <a href="/signup?redirectTo=/product/<%= product.id %>" style="text-decoration:underline;">Create an account</a> — it only takes a minute.</p>
+
+        <% } else if (!isVerified) { %>
+          <div class="error-msg" style="background:#f3e4c9;color:#8a5a13;border-left-color:#8a5a13;">
+            Please verify your email before <%= isPreorder ? 'pre-ordering' : 'ordering' %>.
+          </div>
+          <form method="POST" action="/resend-verification">
+            <button type="submit" class="btn btn-secondary btn-block">Resend verification email</button>
+          </form>
+
+        <% } else { %>
+          <form method="POST" action="/order/<%= product.id %>">
+            <div class="field">
+              <label>Size</label>
+              <select name="size">
+                <% product.sizes.split(',').forEach(s => { %>
+                  <option value="<%= s.trim() %>"><%= s.trim() %></option>
+                <% }) %>
+              </select>
+            </div>
+            <div class="field">
+              <label>Quantity</label>
+              <input type="number" name="quantity" value="1" min="1">
+            </div>
+            <div class="field">
+              <label>Shipping address</label>
+              <textarea name="shipping_address" placeholder="Where should we deliver this?" required><%= prefillAddress %></textarea>
+              <p class="helper-note" style="margin-top:6px;"><a href="/profile" style="text-decoration:underline;">Update your saved address</a></p>
+            </div>
+            <% if (!isPreorder) { %>
+              <div class="field">
+                <label>Note (optional)</label>
+                <textarea name="note" placeholder="Anything else we should know?"></textarea>
+              </div>
+            <% } %>
+            <button type="submit" class="btn <%= isPreorder ? 'btn-ochre' : 'btn-primary' %> btn-block"><%= isPreorder ? 'Reserve with a pre-order' : 'Place order' %></button>
+            <p class="helper-note"><%= isPreorder ? "This is a pre-order for an unreleased piece — production and ship dates will be confirmed by email." : "Payment isn't collected online yet — we'll reach out to confirm payment and delivery details." %></p>
+          </form>
         <% } %>
 
       <% } else { %>
         <!-- Unreleased, view-only: offer waitlist instead -->
-        <% if (currentUser) { %>
-          <% if (alreadyWaitlisted) { %>
-            <button class="btn btn-secondary btn-block" disabled>You're on the waitlist ✓</button>
-          <% } else { %>
-            <form method="POST" action="/waitlist/<%= product.id %>">
-              <button type="submit" class="btn btn-secondary btn-block">Notify me when it drops</button>
-            </form>
-          <% } %>
-        <% } else { %>
+        <% if (!currentUser) { %>
           <a href="/login?redirectTo=/product/<%= product.id %>" class="btn btn-secondary btn-block">Log in to join the waitlist</a>
+        <% } else if (!isVerified) { %>
+          <div class="error-msg" style="background:#f3e4c9;color:#8a5a13;border-left-color:#8a5a13;">Please verify your email to join the waitlist.</div>
+          <form method="POST" action="/resend-verification">
+            <button type="submit" class="btn btn-secondary btn-block">Resend verification email</button>
+          </form>
+        <% } else if (alreadyWaitlisted) { %>
+          <button class="btn btn-secondary btn-block" disabled>You're on the waitlist ✓</button>
+        <% } else { %>
+          <form method="POST" action="/waitlist/<%= product.id %>">
+            <button type="submit" class="btn btn-secondary btn-block">Notify me when it drops</button>
+          </form>
         <% } %>
         <p class="helper-note">This piece hasn't been released for ordering yet — you can only preview it for now.</p>
       <% } %>

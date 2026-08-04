@@ -1,166 +1,261 @@
-// Simple JSON-file "database". No native compilation needed (unlike sqlite3
-// drivers), so this installs and runs cleanly on any machine with just Node.js.
-// Fine for a small storefront; if you outgrow it, swap this file for a real
-// database (Postgres, MySQL, etc.) without touching server.js's calling code
-// much, since it's all accessed through the functions exported below.
+// MongoDB-backed data layer. Requires a MONGODB_URI environment variable
+// pointing at a free MongoDB Atlas cluster (see README for setup steps).
+//
+// All functions here are async (they return Promises), since talking to a
+// real database over the network isn't instant like the old JSON-file
+// version was. Every call site in server.js awaits these.
 
-const fs = require('fs');
-const path = require('path');
+const { MongoClient, ObjectId } = require('mongodb');
 const bcrypt = require('bcryptjs');
+const crypto = require('crypto');
 
-const DB_FILE = path.join(__dirname, 'data.json');
+let client;
+let dbConn;
 
-function loadData() {
-  if (!fs.existsSync(DB_FILE)) {
-    return { users: [], products: [], orders: [], waitlist: [], nextId: { users: 1, products: 1, orders: 1, waitlist: 1 } };
+async function connect() {
+  if (dbConn) return dbConn;
+  const uri = process.env.MONGODB_URI;
+  if (!uri) {
+    throw new Error(
+      'MONGODB_URI is not set. Add it to your .env file (local) or your ' +
+      'hosting provider\'s environment variables (production). See README.md.'
+    );
   }
-  return JSON.parse(fs.readFileSync(DB_FILE, 'utf-8'));
+  client = new MongoClient(uri);
+  await client.connect();
+  dbConn = client.db(); // uses the database name embedded in the URI
+  await ensureSeedData();
+  return dbConn;
 }
 
-function saveData(data) {
-  fs.writeFileSync(DB_FILE, JSON.stringify(data, null, 2));
+// ---------- helpers ----------
+
+// Converts a Mongo document's _id (ObjectId) into a plain string `id` field,
+// so the rest of the app can keep treating ids as simple strings (used in
+// URLs like /product/:id) without needing to know about ObjectId anywhere else.
+function withStringId(doc) {
+  if (!doc) return null;
+  const { _id, ...rest } = doc;
+  return { id: _id.toHexString(), ...rest };
 }
 
-let data = loadData();
-
-function nextId(table) {
-  const id = data.nextId[table]++;
-  return id;
+function toObjectId(id) {
+  try {
+    return new ObjectId(id);
+  } catch {
+    return null; // invalid id format -- callers treat this as "not found"
+  }
 }
 
-function persist() {
-  saveData(data);
-}
+async function ensureSeedData() {
+  const usersCol = dbConn.collection('users');
+  const productsCol = dbConn.collection('products');
 
-// ---------- Seed default admin + sample products on first run ----------
-if (data.users.length === 0) {
-  const hash = bcrypt.hashSync('admin123', 10);
-  data.users.push({
-    id: nextId('users'), name: 'Admin', email: 'admin@example.com', phone: '',
-    password_hash: hash, is_admin: 1, created_at: new Date().toISOString()
-  });
-  console.log('Seeded default admin: admin@example.com / admin123  (CHANGE THIS PASSWORD)');
-}
-
-if (data.products.length === 0) {
-  const sample = [
-    ['Classic Oxford Shirt', 'A clean, everyday button-down in crisp cotton oxford.', 1800000, 'https://images.unsplash.com/photo-1602810318383-e386cc2a3ccf?w=800', 'available', 0, 'S,M,L,XL'],
-    ['Essential Crewneck Tee', 'Heavyweight cotton tee, boxy fit, built to last.', 900000, 'https://images.unsplash.com/photo-1521572163474-6864f9cf17ab?w=800', 'available', 0, 'S,M,L,XL,XXL'],
-    ['Shamz Signature Hoodie (Coming Soon)', 'Our next drop — heavyweight fleece hoodie with embroidered logo. Preview only.', 2500000, 'https://images.unsplash.com/photo-1556821840-3a63f95609a7?w=800', 'unreleased', 0, 'S,M,L,XL'],
-    ['Varsity Bomber Jacket (Pre-order)', 'Limited pre-order run, ships in 4 weeks.', 3800000, 'https://images.unsplash.com/photo-1551028719-00167b16eac5?w=800', 'unreleased', 1, 'S,M,L,XL']
-  ];
-  sample.forEach(([name, description, price, image_url, status, allow_preorder, sizes]) => {
-    data.products.push({
-      id: nextId('products'), name, description, price, currency: 'NGN', image_url,
-      status, allow_preorder, sizes, created_at: new Date().toISOString()
+  const userCount = await usersCol.countDocuments();
+  if (userCount === 0) {
+    const hash = bcrypt.hashSync('admin123', 10);
+    await usersCol.insertOne({
+      name: 'Admin', email: 'admin@example.com', phone: '',
+      password_hash: hash, is_admin: 1, email_verified: 1, verification_token: null,
+      address: '', city: '', state: '',
+      created_at: new Date().toISOString()
     });
-  });
-  console.log('Seeded sample products.');
+    console.log('Seeded default admin: admin@example.com / admin123  (CHANGE THIS PASSWORD)');
+  }
+
+  const productCount = await productsCol.countDocuments();
+  if (productCount === 0) {
+    const sample = [
+      ['Classic Oxford Shirt', 'A clean, everyday button-down in crisp cotton oxford.', 1800000, 'https://images.unsplash.com/photo-1602810318383-e386cc2a3ccf?w=800', 'available', 0, 'S,M,L,XL'],
+      ['Essential Crewneck Tee', 'Heavyweight cotton tee, boxy fit, built to last.', 900000, 'https://images.unsplash.com/photo-1521572163474-6864f9cf17ab?w=800', 'available', 0, 'S,M,L,XL,XXL'],
+      ['Shamz Signature Hoodie (Coming Soon)', 'Our next drop — heavyweight fleece hoodie with embroidered logo. Preview only.', 2500000, 'https://images.unsplash.com/photo-1556821840-3a63f95609a7?w=800', 'unreleased', 0, 'S,M,L,XL'],
+      ['Varsity Bomber Jacket (Pre-order)', 'Limited pre-order run, ships in 4 weeks.', 3800000, 'https://images.unsplash.com/photo-1551028719-00167b16eac5?w=800', 'unreleased', 1, 'S,M,L,XL']
+    ];
+    await productsCol.insertMany(sample.map(([name, description, price, image_url, status, allow_preorder, sizes]) => ({
+      name, description, price, currency: 'NGN', image_url, status, allow_preorder, sizes,
+      created_at: new Date().toISOString()
+    })));
+    console.log('Seeded sample products.');
+  }
 }
-persist();
 
 // ================= Users =================
 const users = {
-  findByEmail(email) {
-    return data.users.find(u => u.email === email.toLowerCase()) || null;
+  async findByEmail(email) {
+    const doc = await dbConn.collection('users').findOne({ email: email.toLowerCase() });
+    return withStringId(doc);
   },
-  findById(id) {
-    return data.users.find(u => u.id === Number(id)) || null;
+  async findById(id) {
+    const oid = toObjectId(id);
+    if (!oid) return null;
+    const doc = await dbConn.collection('users').findOne({ _id: oid });
+    return withStringId(doc);
   },
-  create({ name, email, phone, password_hash, is_admin }) {
-    const user = { id: nextId('users'), name, email: email.toLowerCase(), phone: phone || '', password_hash, is_admin: is_admin ? 1 : 0, created_at: new Date().toISOString() };
-    data.users.push(user);
-    persist();
-    return user;
+  async create({ name, email, phone, password_hash, is_admin, email_verified }) {
+    const doc = {
+      name,
+      email: email.toLowerCase(),
+      phone: phone || '',
+      password_hash,
+      is_admin: is_admin ? 1 : 0,
+      email_verified: email_verified ? 1 : 0,
+      verification_token: email_verified ? null : crypto.randomBytes(24).toString('hex'),
+      address: '',
+      city: '',
+      state: '',
+      created_at: new Date().toISOString()
+    };
+    const result = await dbConn.collection('users').insertOne(doc);
+    return withStringId({ _id: result.insertedId, ...doc });
   },
-  findAdminByEmail(email) {
-    return data.users.find(u => u.email === email.toLowerCase() && u.is_admin) || null;
+  async findAdminByEmail(email) {
+    const doc = await dbConn.collection('users').findOne({ email: email.toLowerCase(), is_admin: 1 });
+    return withStringId(doc);
+  },
+  async findByVerificationToken(token) {
+    const doc = await dbConn.collection('users').findOne({ verification_token: token });
+    return withStringId(doc);
+  },
+  async markVerified(id) {
+    const oid = toObjectId(id);
+    if (!oid) return null;
+    await dbConn.collection('users').updateOne({ _id: oid }, { $set: { email_verified: 1, verification_token: null } });
+    return users.findById(id);
+  },
+  async regenerateVerificationToken(id) {
+    const oid = toObjectId(id);
+    if (!oid) return null;
+    const token = crypto.randomBytes(24).toString('hex');
+    await dbConn.collection('users').updateOne({ _id: oid }, { $set: { verification_token: token } });
+    return users.findById(id);
+  },
+  async updatePassword(id, password_hash) {
+    const oid = toObjectId(id);
+    if (!oid) return null;
+    await dbConn.collection('users').updateOne({ _id: oid }, { $set: { password_hash } });
+    return users.findById(id);
+  },
+  async updateProfile(id, { name, phone, address, city, state }) {
+    const oid = toObjectId(id);
+    if (!oid) return null;
+    const update = {};
+    if (name !== undefined) update.name = name;
+    if (phone !== undefined) update.phone = phone;
+    if (address !== undefined) update.address = address;
+    if (city !== undefined) update.city = city;
+    if (state !== undefined) update.state = state;
+    await dbConn.collection('users').updateOne({ _id: oid }, { $set: update });
+    return users.findById(id);
+  },
+  async listAdmins() {
+    const docs = await dbConn.collection('users').find({ is_admin: 1 }).toArray();
+    return docs.map(withStringId);
   }
 };
 
 // ================= Products =================
 const products = {
-  all() {
-    return [...data.products].sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+  async all() {
+    const docs = await dbConn.collection('products').find().sort({ created_at: -1 }).toArray();
+    return docs.map(withStringId);
   },
-  available() {
-    return products.all().filter(p => p.status === 'available');
+  async available() {
+    const docs = await dbConn.collection('products').find({ status: 'available' }).sort({ created_at: -1 }).toArray();
+    return docs.map(withStringId);
   },
-  unreleased() {
-    return products.all().filter(p => p.status === 'unreleased');
+  async unreleased() {
+    const docs = await dbConn.collection('products').find({ status: 'unreleased' }).sort({ created_at: -1 }).toArray();
+    return docs.map(withStringId);
   },
-  find(id) {
-    return data.products.find(p => p.id === Number(id)) || null;
+  async find(id) {
+    const oid = toObjectId(id);
+    if (!oid) return null;
+    const doc = await dbConn.collection('products').findOne({ _id: oid });
+    return withStringId(doc);
   },
-  create(fields) {
-    const p = { id: nextId('products'), created_at: new Date().toISOString(), ...fields };
-    data.products.push(p);
-    persist();
-    return p;
+  async create(fields) {
+    const doc = { ...fields, created_at: new Date().toISOString() };
+    const result = await dbConn.collection('products').insertOne(doc);
+    return withStringId({ _id: result.insertedId, ...doc });
   },
-  update(id, fields) {
-    const p = products.find(id);
-    if (!p) return null;
-    Object.assign(p, fields);
-    persist();
-    return p;
+  async update(id, fields) {
+    const oid = toObjectId(id);
+    if (!oid) return null;
+    await dbConn.collection('products').updateOne({ _id: oid }, { $set: fields });
+    return products.find(id);
   },
-  remove(id) {
-    data.products = data.products.filter(p => p.id !== Number(id));
-    persist();
+  async remove(id) {
+    const oid = toObjectId(id);
+    if (!oid) return;
+    await dbConn.collection('products').deleteOne({ _id: oid });
   }
 };
 
 // ================= Orders =================
 const orders = {
-  create(fields) {
-    const o = { id: nextId('orders'), status: 'pending_payment', created_at: new Date().toISOString(), ...fields };
-    data.orders.push(o);
-    persist();
-    return o;
+  async create(fields) {
+    const doc = { ...fields, status: 'pending_payment', created_at: new Date().toISOString() };
+    const result = await dbConn.collection('orders').insertOne(doc);
+    return withStringId({ _id: result.insertedId, ...doc });
   },
-  forUser(userId) {
-    return data.orders
-      .filter(o => o.user_id === Number(userId))
-      .map(o => ({ ...o, product: products.find(o.product_id) }))
-      .sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+  async forUser(userId) {
+    const docs = await dbConn.collection('orders').find({ user_id: userId }).sort({ created_at: -1 }).toArray();
+    const result = [];
+    for (const o of docs) {
+      const order = withStringId(o);
+      order.product = await products.find(order.product_id);
+      result.push(order);
+    }
+    return result;
   },
-  allWithDetails() {
-    return data.orders
-      .map(o => ({ ...o, product: products.find(o.product_id), customer: users.findById(o.user_id) }))
-      .sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+  async allWithDetails() {
+    const docs = await dbConn.collection('orders').find().sort({ created_at: -1 }).toArray();
+    const result = [];
+    for (const o of docs) {
+      const order = withStringId(o);
+      order.product = await products.find(order.product_id);
+      order.customer = await users.findById(order.user_id);
+      result.push(order);
+    }
+    return result;
   },
-  updateStatus(id, status) {
-    const o = data.orders.find(o => o.id === Number(id));
-    if (o) { o.status = status; persist(); }
-    return o;
+  async updateStatus(id, status) {
+    const oid = toObjectId(id);
+    if (!oid) return null;
+    await dbConn.collection('orders').updateOne({ _id: oid }, { $set: { status } });
   },
-  count() {
-    return data.orders.length;
+  async count() {
+    return dbConn.collection('orders').countDocuments();
   }
 };
 
 // ================= Waitlist =================
 const waitlist = {
-  add(userId, productId) {
-    const exists = data.waitlist.find(w => w.user_id === Number(userId) && w.product_id === Number(productId));
-    if (exists) return exists;
-    const w = { id: nextId('waitlist'), user_id: Number(userId), product_id: Number(productId), created_at: new Date().toISOString() };
-    data.waitlist.push(w);
-    persist();
-    return w;
+  async add(userId, productId) {
+    const existing = await dbConn.collection('waitlist').findOne({ user_id: userId, product_id: productId });
+    if (existing) return withStringId(existing);
+    const doc = { user_id: userId, product_id: productId, created_at: new Date().toISOString() };
+    const result = await dbConn.collection('waitlist').insertOne(doc);
+    return withStringId({ _id: result.insertedId, ...doc });
   },
-  has(userId, productId) {
-    return !!data.waitlist.find(w => w.user_id === Number(userId) && w.product_id === Number(productId));
+  async has(userId, productId) {
+    const doc = await dbConn.collection('waitlist').findOne({ user_id: userId, product_id: productId });
+    return !!doc;
   },
-  allWithDetails() {
-    return data.waitlist
-      .map(w => ({ ...w, product: products.find(w.product_id), customer: users.findById(w.user_id) }))
-      .sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+  async allWithDetails() {
+    const docs = await dbConn.collection('waitlist').find().sort({ created_at: -1 }).toArray();
+    const result = [];
+    for (const w of docs) {
+      const entry = withStringId(w);
+      entry.product = await products.find(entry.product_id);
+      entry.customer = await users.findById(entry.user_id);
+      result.push(entry);
+    }
+    return result;
   },
-  count() {
-    return data.waitlist.length;
+  async count() {
+    return dbConn.collection('waitlist').countDocuments();
   }
 };
 
-module.exports = { users, products, orders, waitlist };
+module.exports = { connect, users, products, orders, waitlist };

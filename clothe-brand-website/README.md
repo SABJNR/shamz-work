@@ -2,12 +2,34 @@
 
 A custom-built storefront where:
 - **Anyone can browse** — available items and unreleased/"coming soon" drops — with no account.
-- **Ordering requires an account.** Guests are prompted to log in or sign up only when they click "Order" or "Pre-order."
-- **Unreleased items** can be marked either "preview only" (with a "notify me" waitlist) or "pre-order open," per item — you decide when you add/edit the product.
-- **You (admin)** manage everything from a separate `/admin` panel: add/edit/delete products, set availability, and view all orders and waitlist signups.
+- **Ordering requires an account with a verified email.** Guests are prompted to sign up when they click "Order" or "Pre-order," and get a verification email before they can actually place one.
+- **Customer profiles** save name/phone/address once, and pre-fill at checkout (like Jumia/Amazon).
+- **Unreleased items** can be marked either "preview only" (with a "notify me" waitlist) or "pre-order open," per item.
+- **You (admin)** manage everything from `/admin`: add/edit/delete products, set availability, view all orders/waitlist, change your password, and add trusted co-admins.
+- **Data persists for real.** Products, orders, and customer accounts are stored in MongoDB Atlas (free), and uploaded product photos in Cloudinary (free) — both survive restarts and redeploys, unlike the earlier version of this app.
 
 ## Tech stack
-Plain Node.js + Express + EJS templates + a simple JSON-file database (`data.json`, created automatically). No frontend framework/build step and no native modules to compile, so `npm install` works cleanly on any machine — including Windows without Visual Studio Build Tools installed.
+Node.js + Express + EJS templates, MongoDB (via the official `mongodb` driver) for data, Cloudinary for image uploads, Brevo for transactional email. No frontend framework/build step and no native modules to compile, so `npm install` works cleanly on any machine.
+
+## One-time setup: create your free database
+
+You need a MongoDB Atlas account (free forever, no card required) before the app will run.
+
+1. Go to [mongodb.com/cloud/atlas/register](https://www.mongodb.com/cloud/atlas/register) and sign up.
+2. Create a free **M0 cluster** (the free tier) — accept the defaults.
+3. Under **Database Access**, create a database user with a username and password (save these).
+4. Under **Network Access**, click **Add IP Address** → **Allow Access from Anywhere** (`0.0.0.0/0`) — simplest for a small project; you can tighten this later.
+5. Go to your cluster → **Connect** → **Drivers** → copy the connection string. It looks like:
+   ```
+   mongodb+srv://<username>:<password>@cluster0.xxxxx.mongodb.net/?retryWrites=true&w=majority
+   ```
+6. Add a database name right after `.net/` (anything you like, e.g. `shamz`):
+   ```
+   mongodb+srv://<username>:<password>@cluster0.xxxxx.mongodb.net/shamz?retryWrites=true&w=majority
+   ```
+   Replace `<username>` and `<password>` with what you created in step 3.
+
+That full string is your `MONGODB_URI`.
 
 ## Running it locally
 
@@ -16,68 +38,79 @@ Plain Node.js + Express + EJS templates + a simple JSON-file database (`data.jso
    ```
    npm install
    ```
-3. Copy `.env.example` to `.env` and set a real `SESSION_SECRET` (any long random string):
+3. Copy `.env.example` to `.env`:
    ```
    cp .env.example .env
    ```
-4. Start the server:
+4. Open `.env` and fill in:
+   - `SESSION_SECRET` — any long random string
+   - `MONGODB_URI` — the connection string from the setup above (**required** — the app won't start without it)
+   - Optionally `BREVO_*` and `CLOUDINARY_*` (see below) — the app still runs without these, it just skips sending real emails / uploading real images until you add them.
+5. Start the server:
    ```
    npm start
    ```
-5. Visit **http://localhost:3000**. The database file (`data.json`) is created automatically on first run, with a default admin account and a few sample products.
+6. Visit **http://localhost:3000**. On first run it seeds a default admin account and a few sample products into your database.
 
 ## Admin panel
 
-Go to **http://localhost:3000/admin/login**
+Go to **http://localhost:3000/login** (same login as customers — admin accounts are auto-routed to `/admin` after logging in).
 
-Default login (⚠️ change immediately):
+Default login (⚠️ change immediately — go to `/admin/change-password` after logging in):
 - Email: `admin@example.com`
 - Password: `admin123`
 
-To change the admin password right now, the simplest way is to delete `data.json` and edit the seed password in `db.js` before restarting — see the `bcrypt.hashSync('admin123', 10)` line. (A proper "change password" admin screen is a natural next feature to add.)
-
 From the admin panel you can:
-- **Products** — add new items, upload an image (or paste an image URL), set price, sizes, and status (`Available now` vs `Unreleased`). For unreleased items, you choose whether customers can pre-order or only preview + join a waitlist.
-- **Orders** — see every order/pre-order placed, with the customer's contact info, and update its status (pending payment → confirmed → shipped, or cancelled).
-- **Waitlist** — see everyone who asked to be notified about an unreleased item, so you can email them when it drops.
+- **Products** — add/edit items, upload an image (if Cloudinary is configured) or paste an image URL, set price, sizes, and status.
+- **Orders** — see every order/pre-order with the customer's contact info, update status.
+- **Waitlist** — see everyone waiting on an unreleased item.
+- **Change Password** — update your own admin password.
+- **Admin Accounts** — see all admins, and create new trusted admin accounts (e.g. for your client or team). New admins you create this way are marked verified immediately — no email loop.
 
-## About payments
+## Email verification (Brevo)
 
-You mentioned payment method isn't decided yet, so right now "placing an order" just records the order as `pending_payment` and shows the customer's contact + shipping info in your admin Orders page — you follow up manually to collect payment. When you're ready:
+Customer accounts start unverified and can't place orders until they click a link sent to their email. To actually send that email:
 
-- **Online payment (recommended for Nigeria):** [Paystack](https://paystack.com) or [Flutterwave](https://flutterwave.com) both have straightforward Node.js SDKs. The natural place to add this is inside the `/order/:productId` route in `server.js` — redirect to a payment page before saving the order as `confirmed`.
-- **Pay on delivery / bank transfer:** the current setup already works for this as-is — you just contact the customer using the details in the Orders panel.
+1. Sign up free at [brevo.com](https://www.brevo.com) (no card needed).
+2. **Settings → Senders & IP → Senders** — add and verify a sender email (your own Gmail works fine).
+3. **Settings → SMTP & API → API Keys** — generate a new key.
+4. Put that key in `.env` (or your host's environment variables) as `BREVO_API_KEY`, and the verified sender email as `BREVO_SENDER_EMAIL`.
 
-Happy to build the Paystack/Flutterwave integration for you once you've picked one and created an account with them (you'll need their API keys).
+Without this set up, the app just prints "would have sent..." to the console instead of emailing anyone — fine for local testing, not fine for real customers.
 
-## Deploying it so it's live on the internet
+## Product image uploads (Cloudinary)
 
-This is a standard Node.js app, so it runs on most hosts. A few beginner-friendly options:
+By default, the admin product form only accepts an image **URL** (paste a link). To allow uploading a photo file directly:
 
-- **[Render](https://render.com)** — free tier, connect your GitHub repo, it runs `npm install && npm start` automatically.
-- **[Railway](https://railway.app)** — similar, very quick for Node + SQLite apps.
-- **A VPS (e.g. DigitalOcean, Hetzner)** — more control, use `pm2` to keep the app running.
+1. Sign up free at [cloudinary.com](https://cloudinary.com) (no card needed).
+2. From your Dashboard, copy your **Cloud name**, **API Key**, and **API Secret**.
+3. Put these in `.env` (or your host's environment variables) as `CLOUDINARY_CLOUD_NAME`, `CLOUDINARY_API_KEY`, `CLOUDINARY_API_SECRET`.
 
-One thing to know: this app stores data in a file (`data.json`) on disk. Most free hosting tiers **do not** persist disk storage between deploys/restarts, which would wipe your products/orders each time. For a real production launch, either:
-- pick a host with a persistent disk (Render's paid tier, a VPS), or
-- move to a hosted database like Postgres (a moderate rewrite of `db.js`, happy to help when you're ready).
+Once set, the "upload a file" option appears automatically on the product form, and uploaded images are stored permanently on Cloudinary (not on your app server, which can get wiped on redeploy).
 
-Also note: sessions currently use Express's default **in-memory** store, which is fine for development but resets when the server restarts and won't work correctly if you run more than one server instance. For production, swap in a persistent session store (e.g. Redis).
+## Deploying (e.g. on Render)
+
+1. Push this project to GitHub.
+2. On [Render](https://render.com), create a new **Web Service** from your repo.
+   - Build command: `npm install`
+   - Start command: `npm start`
+3. Under **Environment**, add all the variables from your `.env` file: `SESSION_SECRET`, `MONGODB_URI`, and the Brevo/Cloudinary ones if you're using them, plus `APP_BASE_URL` set to your Render URL (e.g. `https://your-app.onrender.com`) so verification email links point to the right place.
+4. Deploy. Because data now lives in MongoDB Atlas and images in Cloudinary (not on Render's disk), everything will survive redeploys and restarts from now on.
 
 ## Project structure
 
 ```
-server.js            Main app — all routes (public, customer auth, orders, admin)
-db.js                 JSON-file data layer + seed data (creates data.json)
-views/                EJS templates (pages)
-  admin/               Admin panel pages
-  partials/            Shared header/footer
-public/css/style.css  Styling
-public/uploads/       Uploaded product images land here
+server.js             Main app — all routes (public, customer auth, orders, admin)
+db.js                  MongoDB data layer + seed data
+mailer.js              Sends verification emails via Brevo
+views/                 EJS templates (pages)
+  admin/                Admin panel pages
+  partials/             Shared header/footer
+public/css/style.css   Styling
 ```
 
 ## Making it yours
 
-- Brand name is already set to "Shamz Clothing Store" in `views/partials/header.ejs` and `views/partials/footer.ejs` — edit those files directly if it needs to change again.
-- Replace the color palette / fonts in `public/css/style.css` (`:root` variables at the top) if you want a different look.
-- Delete the sample products from the admin panel and add your real ones (shirts, tops, hoodies, etc.).
+- Brand name is set to "Shamz Clothing Store" in `views/partials/header.ejs` and `views/partials/footer.ejs`.
+- Replace the color palette / fonts in `public/css/style.css` (`:root` variables at the top).
+- Delete the sample products from the admin panel and add your real ones.

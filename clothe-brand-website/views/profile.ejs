@@ -1,0 +1,39 @@
+<%- include('partials/header', { title: 'My Profile' }) %>
+
+<div class="container">
+  <div class="form-card">
+    <h2>My profile</h2>
+    <p class="helper-note" style="margin-top:0;margin-bottom:20px;">Save your details once — we'll pre-fill them at checkout, just like Jumia/Amazon.</p>
+    <% if (saved) { %><div class="error-msg" style="background:#dcece0;color:#1e5c34;border-left-color:#1e5c34;">Profile updated ✓</div><% } %>
+
+    <form method="POST" action="/profile">
+      <div class="field">
+        <label>Full name</label>
+        <input type="text" name="name" value="<%= user.name %>" required>
+      </div>
+      <div class="field">
+        <label>Email</label>
+        <input type="email" value="<%= user.email %>" disabled style="background:#EFE9DB;">
+      </div>
+      <div class="field">
+        <label>Phone number</label>
+        <input type="tel" name="phone" value="<%= user.phone || '' %>">
+      </div>
+      <div class="field">
+        <label>Delivery address</label>
+        <textarea name="address" placeholder="Street address"><%= user.address || '' %></textarea>
+      </div>
+      <div class="field">
+        <label>City</label>
+        <input type="text" name="city" value="<%= user.city || '' %>">
+      </div>
+      <div class="field">
+        <label>State</label>
+        <input type="text" name="state" value="<%= user.state || '' %>">
+      </div>
+      <button type="submit" class="btn btn-primary btn-block">Save profile</button>
+    </form>
+  </div>
+</div>
+
+<%- include('partials/footer') %>

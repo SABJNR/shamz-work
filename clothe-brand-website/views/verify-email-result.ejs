@@ -1,0 +1,18 @@
+<%- include('partials/header', { title: 'Email verification' }) %>
+
+<div class="container">
+  <div class="form-card" style="text-align:center;">
+    <% if (success) { %>
+      <h2>You're verified! ✅</h2>
+      <p>Your email has been confirmed. You can now place orders and pre-orders.</p>
+      <a href="/" class="btn btn-primary" style="margin-top:16px;">Continue to the shop</a>
+    <% } else { %>
+      <h2>Link not valid</h2>
+      <p>This verification link is invalid or has already been used.</p>
+      <p class="helper-note">If you still need to verify, log in and use the "Resend verification email" button.</p>
+      <a href="/login" class="btn btn-secondary" style="margin-top:16px;">Log in</a>
+    <% } %>
+  </div>
+</div>
+
+<%- include('partials/footer') %>

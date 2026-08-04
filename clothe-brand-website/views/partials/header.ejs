@@ -18,6 +18,7 @@
             <a href="/admin">Admin Panel</a>
           <% } else { %>
             <a href="/my-orders">My Orders</a>
+            <a href="/profile">My Profile</a>
           <% } %>
           <span>Hi, <%= currentUser.name.split(' ')[0] %></span>
           <form method="POST" action="/logout" style="display:inline">
@@ -29,3 +30,11 @@
       </nav>
     </div>
   </header>
+  <% if (currentUser && !currentUser.is_admin && currentUser.email_verified !== 1) { %>
+    <div style="background:#f3e4c9;color:#8a5a13;text-align:center;padding:10px 16px;font-size:13.5px;">
+      Please verify your email to place orders.
+      <form method="POST" action="/resend-verification" style="display:inline;">
+        <button type="submit" style="background:none;border:none;text-decoration:underline;color:inherit;cursor:pointer;font:inherit;padding:0;">Resend verification email</button>
+      </form>
+    </div>
+  <% } %>
