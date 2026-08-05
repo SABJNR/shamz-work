@@ -21,7 +21,10 @@ async function connect() {
       'hosting provider\'s environment variables (production). See README.md.'
     );
   }
-  client = new MongoClient(uri);
+  client = new MongoClient(uri, {
+    serverApi: { version: '1', strict: true, deprecationErrors: true },
+    serverSelectionTimeoutMS: 10000
+  });
   await client.connect();
   dbConn = client.db(); // uses the database name embedded in the URI
   await ensureSeedData();
