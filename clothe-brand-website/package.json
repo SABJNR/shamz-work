@@ -3,6 +3,9 @@
   "version": "1.0.0",
   "description": "Custom clothing brand website with guest browsing, account-required ordering, and admin product management.",
   "main": "server.js",
+  "engines": {
+    "node": "20.x"
+  },
   "scripts": {
     "start": "node server.js",
     "dev": "node server.js"
