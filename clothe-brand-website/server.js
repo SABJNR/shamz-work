@@ -428,11 +428,13 @@ app.use((err, req, res, next) => {
   console.error(err);
   res.status(500).send('Something went wrong on our end. Please try again in a moment.');
 });
+
 process.on('unhandledRejection', (err) => {
   console.error('\n  Unhandled error:');
   console.error(err);
   setTimeout(() => process.exit(1), 500);
 });
+
 db.connect()
   .then(() => {
     app.listen(PORT, () => {
@@ -441,9 +443,11 @@ db.connect()
       console.log(`  Default admin login: admin@example.com / admin123 (change this!)\n`);
     });
   })
-
   .catch(err => {
     console.error('\n  Failed to connect to the database.');
     console.error('  ' + (err && err.message ? err.message : err) + '\n');
+    // Give the log lines above a moment to actually flush to the console
+    // before the process dies -- process.exit() can otherwise cut output
+    // off mid-stream on some hosts, hiding the real error.
     setTimeout(() => process.exit(1), 500);
   });
