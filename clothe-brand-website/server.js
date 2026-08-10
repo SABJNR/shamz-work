@@ -42,8 +42,23 @@ app.use(session({
   cookie: { maxAge: 1000 * 60 * 60 * 24 * 7 } // 7 days
 }));
 
-// Make current user available to all views
-app.use((req, res, next) => {
+// Make current user available to all views. Verification status is looked
+// up fresh from the database on every request (instead of trusting the
+// value cached at login time), so clicking the verify link updates the
+// banner immediately -- even if it was clicked in a different browser/tab
+// than the one currently logged in.
+app.use(async (req, res, next) => {
+  if (req.session.user) {
+    try {
+      const fresh = await db.users.findById(req.session.user.id);
+      if (fresh) {
+        req.session.user.email_verified = fresh.email_verified;
+        req.session.user.name = fresh.name; // keep display name in sync too
+      }
+    } catch (e) {
+      console.error('Failed to refresh session user:', e.message);
+    }
+  }
   res.locals.currentUser = req.session.user || null;
   res.locals.formatPrice = (kobo, currency = 'NGN') => {
     const amount = (kobo / 100).toLocaleString('en-NG', { minimumFractionDigits: 2 });
