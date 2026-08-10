@@ -182,6 +182,14 @@ app.post('/signup', asyncRoute(async (req, res) => {
 
 app.get('/verify-email-notice', requireLogin, asyncRoute(async (req, res) => {
   const user = await db.users.findById(req.session.user.id);
+  // If they're already verified (e.g. clicked the link on their phone, then
+  // came back to this tab and refreshed), skip straight to where they were
+  // headed instead of showing "check your inbox" forever.
+  if (user && user.email_verified) {
+    const dest = req.session.pendingRedirect || '/';
+    delete req.session.pendingRedirect;
+    return res.redirect(dest);
+  }
   res.render('verify-email-notice', { user, continueTo: req.session.pendingRedirect || '/' });
 }));
 

@@ -16,4 +16,19 @@
   </div>
 </div>
 
+<script>
+  // Quietly re-check every 4 seconds whether verification has gone through
+  // yet (e.g. because the link was tapped on a different device), and jump
+  // straight to the shop the moment it has -- no manual refresh needed.
+  setInterval(() => {
+    fetch(window.location.href, { redirect: 'manual' }).then(res => {
+      // A 0 (opaqueredirect) response means the server tried to redirect us
+      // away from this page -- i.e. we're verified now. Reload to follow it.
+      if (res.type === 'opaqueredirect' || res.redirected) {
+        window.location.reload();
+      }
+    }).catch(() => {});
+  }, 4000);
+</script>
+
 <%- include('partials/footer') %>
