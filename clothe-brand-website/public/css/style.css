@@ -275,6 +275,7 @@ th { text-transform: uppercase; font-size: 11px; letter-spacing: 0.08em; color: 
 .status-confirmed { background: #dcece0; color: #1e5c34; }
 .status-shipped { background: #dce2f3; color: #2b3a6b; }
 .status-cancelled { background: #f6e2dc; color: #7a2323; }
+.status-payment_failed { background: #f6e2dc; color: #7a2323; }
 
 /* ---------- Admin shell ---------- */
 .admin-shell { display: flex; min-height: calc(100vh - 90px); }

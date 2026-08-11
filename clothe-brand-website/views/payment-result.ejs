@@ -1,0 +1,18 @@
+<%- include('partials/header', { title: 'Payment not completed' }) %>
+
+<div class="container">
+  <div class="form-card" style="text-align:center;">
+    <h2>Payment didn't go through</h2>
+    <% if (product) { %>
+      <p>Your order for <strong><%= product.name %></strong> is saved, but the payment wasn't completed.</p>
+    <% } else { %>
+      <p>We couldn't confirm this payment.</p>
+    <% } %>
+    <p class="helper-note">If money left your account, don't worry — it'll be reversed automatically by your bank/Paystack. You can try paying again from "My Orders", or contact us if anything looks off.</p>
+    <a href="/my-orders" class="btn btn-primary" style="margin-top:16px;">View my orders</a>
+    <br><br>
+    <a href="/" style="text-decoration:underline;font-size:14px;">Continue shopping</a>
+  </div>
+</div>
+
+<%- include('partials/footer') %>

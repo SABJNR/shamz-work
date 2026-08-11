@@ -78,6 +78,23 @@ Customer accounts start unverified and can't place orders until they click a lin
 
 Without this set up, the app just prints "would have sent..." to the console instead of emailing anyone — fine for local testing, not fine for real customers.
 
+## Taking real payments (Paystack)
+
+By default, orders are recorded but no online payment is collected — the admin follows up manually. To actually charge customers online:
+
+1. Sign up free at [paystack.com](https://paystack.com) — no card needed to start in test mode.
+2. Go to **Settings → API Keys & Webhooks**.
+3. Copy the **Secret Key** — use the **Test Secret Key** (`sk_test_...`) while developing, and only switch to the **Live Secret Key** (`sk_live_...`) once you're ready for real customer payments (Paystack will ask you to complete a short business verification first).
+4. Put it in `.env` (or your host's environment variables) as `PAYSTACK_SECRET_KEY`.
+
+Once set, the order flow changes automatically:
+- Customer fills the order form → gets sent to Paystack's secure payment page
+- After paying, they're brought back and the order is marked **confirmed** — but only after the server double-checks with Paystack that the payment genuinely succeeded (never trusting the browser redirect alone)
+- If payment fails or is abandoned, the order is marked **payment failed**, and the customer sees a **"Pay now"** button under "My Orders" to retry
+- Admin sees real-time payment status on the Orders page
+
+Test mode gives you fake card numbers to test the full flow without moving real money — see [Paystack's test cards](https://paystack.com/docs/payments/test-payments/) docs.
+
 ## Product image uploads (Cloudinary)
 
 By default, the admin product form only accepts an image **URL** (paste a link). To allow uploading a photo file directly:

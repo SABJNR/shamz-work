@@ -61,7 +61,7 @@
               </div>
             <% } %>
             <button type="submit" class="btn <%= isPreorder ? 'btn-ochre' : 'btn-primary' %> btn-block"><%= isPreorder ? 'Reserve with a pre-order' : 'Place order' %></button>
-            <p class="helper-note"><%= isPreorder ? "This is a pre-order for an unreleased piece — production and ship dates will be confirmed by email." : "Payment isn't collected online yet — we'll reach out to confirm payment and delivery details." %></p>
+            <p class="helper-note"><%= isPreorder ? (paystackEnabled ? "You'll pay now to secure your spot — production and ship dates will be confirmed by email." : "This is a pre-order for an unreleased piece — production and ship dates will be confirmed by email.") : (paystackEnabled ? "You'll be taken to a secure payment page to complete your order." : "Payment isn't collected online yet — we'll reach out to confirm payment and delivery details.") %></p>
           </form>
         <% } %>
 

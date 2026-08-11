@@ -10,7 +10,7 @@
     <% } else { %>
       <table>
         <thead>
-          <tr><th>Item</th><th>Type</th><th>Size</th><th>Qty</th><th>Status</th><th>Placed</th></tr>
+          <tr><th>Item</th><th>Type</th><th>Size</th><th>Qty</th><th>Status</th><th>Placed</th><th></th></tr>
         </thead>
         <tbody>
           <% orders.forEach(o => { %>
@@ -21,6 +21,13 @@
               <td><%= o.quantity %></td>
               <td><span class="status-tag status-<%= o.status %>"><%= o.status.replace('_',' ') %></span></td>
               <td><%= new Date(o.created_at).toLocaleDateString() %></td>
+              <td>
+                <% if (o.status === 'pending_payment' || o.status === 'payment_failed') { %>
+                  <form method="POST" action="/pay/<%= o.id %>" style="display:inline;">
+                    <button type="submit" class="btn btn-ochre btn-small">Pay now</button>
+                  </form>
+                <% } %>
+              </td>
             </tr>
           <% }) %>
         </tbody>

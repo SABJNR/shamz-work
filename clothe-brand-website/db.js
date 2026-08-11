@@ -201,6 +201,12 @@ const orders = {
     const result = await dbConn.collection('orders').insertOne(doc);
     return withStringId({ _id: result.insertedId, ...doc });
   },
+  async find(id) {
+    const oid = toObjectId(id);
+    if (!oid) return null;
+    const doc = await dbConn.collection('orders').findOne({ _id: oid });
+    return withStringId(doc);
+  },
   async forUser(userId) {
     const docs = await dbConn.collection('orders').find({ user_id: userId }).sort({ created_at: -1 }).toArray();
     const result = [];
@@ -222,10 +228,14 @@ const orders = {
     }
     return result;
   },
-  async updateStatus(id, status) {
+  async update(id, fields) {
     const oid = toObjectId(id);
     if (!oid) return null;
-    await dbConn.collection('orders').updateOne({ _id: oid }, { $set: { status } });
+    await dbConn.collection('orders').updateOne({ _id: oid }, { $set: fields });
+    return orders.find(id);
+  },
+  async updateStatus(id, status) {
+    return orders.update(id, { status });
   },
   async count() {
     return dbConn.collection('orders').countDocuments();

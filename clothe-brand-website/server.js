@@ -8,6 +8,7 @@ const path = require('path');
 const cloudinary = require('cloudinary').v2;
 const db = require('./db');
 const { sendEmail, verificationEmailHtml } = require('./mailer');
+const paystack = require('./paystack');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -142,7 +143,7 @@ app.get('/product/:id', asyncRoute(async (req, res) => {
     alreadyWaitlisted = await db.waitlist.has(req.session.user.id, product.id);
     profileUser = await db.users.findById(req.session.user.id);
   }
-  res.render('product', { product, alreadyWaitlisted, profileUser });
+  res.render('product', { product, alreadyWaitlisted, profileUser, paystackEnabled: paystack.isConfigured() });
 }));
 
 // =====================================================
@@ -272,28 +273,94 @@ app.post('/profile', requireLogin, asyncRoute(async (req, res) => {
 // ORDERING — account + verified email required from here
 // =====================================================
 
-app.get('/order/:productId', requireVerified, (req, res) => {
-  res.redirect('/product/' + req.params.productId);
-});
-
 app.post('/order/:productId', requireVerified, asyncRoute(async (req, res) => {
   const product = await db.products.find(req.params.productId);
   if (!product) return res.status(404).render('404');
   const { size, quantity, shipping_address, note } = req.body;
+  const qty = Number(quantity) || 1;
 
   const type = product.status === 'unreleased' ? 'preorder' : 'order';
 
-  await db.orders.create({
+  const order = await db.orders.create({
     user_id: req.session.user.id,
     product_id: product.id,
     size,
-    quantity: Number(quantity) || 1,
+    quantity: qty,
     type,
     shipping_address,
-    note: note || ''
+    note: note || '',
+    amount_kobo: product.price * qty
   });
 
-  res.render('order-confirmation', { product });
+  // If Paystack isn't set up yet, fall back to the old manual-payment flow
+  // (order gets recorded, admin follows up to collect payment directly) so
+  // the site keeps working while you're waiting on a Paystack account.
+  if (!paystack.isConfigured()) {
+    return res.render('order-confirmation', { product, paid: false, paystackEnabled: false });
+  }
+
+  try {
+    const authUrl = await paystack.initializePayment({
+      email: req.session.user.email,
+      amountInKobo: order.amount_kobo,
+      reference: order.id,
+      callbackUrl: `${baseUrl(req)}/payment/callback`,
+      metadata: { order_id: order.id, product_name: product.name }
+    });
+    res.redirect(authUrl);
+  } catch (e) {
+    console.error('Failed to start Paystack payment:', e.message);
+    res.render('order-confirmation', { product, paid: false, paystackEnabled: true, startError: true });
+  }
+}));
+
+// Paystack redirects the customer's browser back here after they attempt
+// payment. We NEVER trust this redirect alone -- we always re-verify the
+// payment status directly with Paystack's servers before treating an order
+// as paid.
+app.get('/payment/callback', asyncRoute(async (req, res) => {
+  const { reference } = req.query;
+  const order = reference ? await db.orders.find(reference) : null;
+  if (!order) {
+    return res.render('payment-result', { success: false, product: null });
+  }
+  const product = await db.products.find(order.product_id);
+
+  try {
+    const verification = await paystack.verifyPayment(reference);
+    if (verification.success && verification.amountInKobo === order.amount_kobo) {
+      await db.orders.update(order.id, { status: 'confirmed' });
+      return res.render('order-confirmation', { product, paid: true, paystackEnabled: true });
+    }
+    await db.orders.update(order.id, { status: 'payment_failed' });
+    return res.render('payment-result', { success: false, product });
+  } catch (e) {
+    console.error('Payment verification failed:', e.message);
+    return res.render('payment-result', { success: false, product });
+  }
+}));
+
+// Lets a customer retry payment on an order that's still unpaid (e.g. they
+// closed the Paystack tab, or a previous attempt failed).
+app.post('/pay/:orderId', requireVerified, asyncRoute(async (req, res) => {
+  const order = await db.orders.find(req.params.orderId);
+  if (!order || order.user_id !== req.session.user.id) return res.status(404).render('404');
+  if (order.status === 'confirmed' || order.status === 'shipped') return res.redirect('/my-orders');
+  if (!paystack.isConfigured()) return res.redirect('/my-orders');
+
+  try {
+    const authUrl = await paystack.initializePayment({
+      email: req.session.user.email,
+      amountInKobo: order.amount_kobo,
+      reference: order.id,
+      callbackUrl: `${baseUrl(req)}/payment/callback`,
+      metadata: { order_id: order.id }
+    });
+    res.redirect(authUrl);
+  } catch (e) {
+    console.error('Failed to restart Paystack payment:', e.message);
+    res.redirect('/my-orders');
+  }
 }));
 
 app.post('/waitlist/:productId', requireVerified, asyncRoute(async (req, res) => {
