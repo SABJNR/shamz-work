@@ -22,7 +22,7 @@
               <td><span class="status-tag status-<%= o.status %>"><%= o.status.replace('_',' ') %></span></td>
               <td><%= new Date(o.created_at).toLocaleDateString() %></td>
               <td>
-                <% if (o.status === 'pending_payment' || o.status === 'payment_failed') { %>
+                <% if (o.status === 'pending_payment') { %>
                   <form method="POST" action="/pay/<%= o.id %>" style="display:inline;">
                     <button type="submit" class="btn btn-ochre btn-small">Pay now</button>
                   </form>

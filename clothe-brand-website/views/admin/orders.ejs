@@ -22,7 +22,7 @@
               <td>
                 <form method="POST" action="/admin/orders/<%= o.id %>/status?_method=PUT" style="display:flex;gap:6px;align-items:center;">
                   <select name="status" onchange="this.form.submit()">
-                    <% ['pending_payment','payment_failed','confirmed','shipped','cancelled'].forEach(s => { %>
+                    <% ['pending_payment','confirmed','shipped','cancelled'].forEach(s => { %>
                       <option value="<%= s %>" <%= o.status === s ? 'selected' : '' %>><%= s.replace('_',' ') %></option>
                     <% }) %>
                   </select>
