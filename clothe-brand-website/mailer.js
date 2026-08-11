@@ -5,7 +5,7 @@
 // your local .env file):
 //   BREVO_API_KEY      - your Brevo API key (Settings -> SMTP & API -> API Keys)
 //   BREVO_SENDER_EMAIL - the email address you verified as a sender in Brevo
-//   BREVO_SENDER_NAME  - (optional) display name, defaults to "Shamz Clothing Store"
+//   BREVO_SENDER_NAME  - (optional) display name, defaults to "F.D.C Clothing Store"
 //
 // If these aren't set, emails are skipped and logged to the console instead —
 // this lets the rest of the app keep working during local development without
@@ -14,7 +14,7 @@
 async function sendEmail({ to, toName, subject, html }) {
   const apiKey = process.env.BREVO_API_KEY;
   const senderEmail = process.env.BREVO_SENDER_EMAIL;
-  const senderName = process.env.BREVO_SENDER_NAME || 'Shamz Clothing Store';
+  const senderName = process.env.BREVO_SENDER_NAME || 'F.D.C Clothing Store';
 
   if (!apiKey || !senderEmail) {
     console.log(`\n[mailer] BREVO_API_KEY / BREVO_SENDER_EMAIL not set — skipping real email.`);
@@ -50,7 +50,7 @@ async function sendEmail({ to, toName, subject, html }) {
 function verificationEmailHtml({ name, verifyUrl }) {
   return `
     <div style="font-family: sans-serif; max-width: 480px; margin: 0 auto;">
-      <h2 style="color:#2B3A6B;">Welcome to Shamz Clothing Store, ${name}!</h2>
+      <h2 style="color:#2B3A6B;">Welcome to F.D.C Clothing Store, ${name}!</h2>
       <p>Please confirm your email address to activate your account and start ordering.</p>
       <p style="margin: 28px 0;">
         <a href="${verifyUrl}" style="background:#B2502A;color:#fff;padding:12px 24px;text-decoration:none;border-radius:2px;display:inline-block;">

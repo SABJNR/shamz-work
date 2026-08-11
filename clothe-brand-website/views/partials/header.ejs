@@ -1,26 +1,30 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title><%= typeof title !== 'undefined' ? title + ' — Shamz Clothing Store' : 'Shamz Clothing Store' %></title>
+  <title>
+    <%= typeof title !=='undefined' ? title + ' — F.D.C Clothing Store' : 'F.D.C Clothing Store' %>
+  </title>
   <link rel="stylesheet" href="/public/css/style.css">
 </head>
+
 <body>
   <header class="site-header">
     <div class="container">
-      <a href="/" class="brand">Shamz<span> Clothing</span></a>
+      <a href="/" class="brand">F.D.C<span> Clothing</span></a>
       <nav class="nav-links">
         <a href="/">Shop</a>
         <a href="/#unreleased">Coming Soon</a>
         <% if (currentUser) { %>
           <% if (currentUser.is_admin) { %>
             <a href="/admin">Admin Panel</a>
-          <% } else { %>
-            <a href="/my-orders">My Orders</a>
-            <a href="/profile">My Profile</a>
-          <% } %>
-          <span>Hi, <%= currentUser.name.split(' ')[0] %></span>
+            <% } else { %>
+              <a href="/my-orders">My Orders</a>
+              <a href="/profile">My Profile</a>
+              <% } %>
+                <span>Hi, <%= currentUser.name.split(' ')[0] %></span>
           <form method="POST" action="/logout" style="display:inline">
             <button type="submit" class="pill" style="background:none;border:1px solid rgba(247,242,233,0.4);color:inherit;cursor:pointer;font:inherit;">Log out</button>
           </form>

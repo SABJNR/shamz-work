@@ -71,7 +71,7 @@ async function ensureSeedData() {
     const sample = [
       ['Classic Oxford Shirt', 'A clean, everyday button-down in crisp cotton oxford.', 1800000, 'https://images.unsplash.com/photo-1602810318383-e386cc2a3ccf?w=800', 'available', 0, 'S,M,L,XL'],
       ['Essential Crewneck Tee', 'Heavyweight cotton tee, boxy fit, built to last.', 900000, 'https://images.unsplash.com/photo-1521572163474-6864f9cf17ab?w=800', 'available', 0, 'S,M,L,XL,XXL'],
-      ['Shamz Signature Hoodie (Coming Soon)', 'Our next drop — heavyweight fleece hoodie with embroidered logo. Preview only.', 2500000, 'https://images.unsplash.com/photo-1556821840-3a63f95609a7?w=800', 'unreleased', 0, 'S,M,L,XL'],
+      ['F.D.C Signature Hoodie (Coming Soon)', 'Our next drop — heavyweight fleece hoodie with embroidered logo. Preview only.', 2500000, 'https://images.unsplash.com/photo-1556821840-3a63f95609a7?w=800', 'unreleased', 0, 'S,M,L,XL'],
       ['Varsity Bomber Jacket (Pre-order)', 'Limited pre-order run, ships in 4 weeks.', 3800000, 'https://images.unsplash.com/photo-1551028719-00167b16eac5?w=800', 'unreleased', 1, 'S,M,L,XL']
     ];
     await productsCol.insertMany(sample.map(([name, description, price, image_url, status, allow_preorder, sizes]) => ({

@@ -1,4 +1,4 @@
-# Shamz Clothing Store — Website
+# F.D.C Clothing Store — Website
 
 A custom-built storefront where:
 - **Anyone can browse** — available items and unreleased/"coming soon" drops — with no account.
@@ -23,9 +23,9 @@ You need a MongoDB Atlas account (free forever, no card required) before the app
    ```
    mongodb+srv://<username>:<password>@cluster0.xxxxx.mongodb.net/?retryWrites=true&w=majority
    ```
-6. Add a database name right after `.net/` (anything you like, e.g. `shamz`):
+6. Add a database name right after `.net/` (anything you like, e.g. `fdc`):
    ```
-   mongodb+srv://<username>:<password>@cluster0.xxxxx.mongodb.net/shamz?retryWrites=true&w=majority
+   mongodb+srv://<username>:<password>@cluster0.xxxxx.mongodb.net/fdc?retryWrites=true&w=majority
    ```
    Replace `<username>` and `<password>` with what you created in step 3.
 
@@ -128,6 +128,6 @@ public/css/style.css   Styling
 
 ## Making it yours
 
-- Brand name is set to "Shamz Clothing Store" in `views/partials/header.ejs` and `views/partials/footer.ejs`.
+- Brand name is set to "F.D.C Clothing Store" in `views/partials/header.ejs` and `views/partials/footer.ejs`.
 - Replace the color palette / fonts in `public/css/style.css` (`:root` variables at the top).
 - Delete the sample products from the admin panel and add your real ones.

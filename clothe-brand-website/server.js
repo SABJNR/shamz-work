@@ -91,7 +91,7 @@ async function uploadImageIfPresent(file) {
     return null;
   }
   const dataUri = `data:${file.mimetype};base64,${file.buffer.toString('base64')}`;
-  const result = await cloudinary.uploader.upload(dataUri, { folder: 'shamz-clothing-store' });
+  const result = await cloudinary.uploader.upload(dataUri, { folder: 'fdc-clothing-store' });
   return result.secure_url;
 }
 
@@ -172,7 +172,7 @@ app.post('/signup', asyncRoute(async (req, res) => {
     await sendEmail({
       to: user.email,
       toName: user.name,
-      subject: 'Confirm your email — Shamz Clothing Store',
+      subject: 'Confirm your email — F.D.C Clothing Store',
       html: verificationEmailHtml({ name: user.name, verifyUrl })
     });
   } catch (e) {
@@ -206,7 +206,7 @@ app.post('/resend-verification', requireLogin, asyncRoute(async (req, res) => {
     await sendEmail({
       to: fresh.email,
       toName: fresh.name,
-      subject: 'Confirm your email — Shamz Clothing Store',
+      subject: 'Confirm your email — F.D.C Clothing Store',
       html: verificationEmailHtml({ name: fresh.name, verifyUrl })
     });
   } catch (e) {
@@ -531,7 +531,7 @@ process.on('unhandledRejection', (err) => {
 db.connect()
   .then(() => {
     app.listen(PORT, () => {
-      console.log(`\n  Shamz Clothing Store running at http://localhost:${PORT}`);
+      console.log(`\n  F.D.C Clothing Store running at http://localhost:${PORT}`);
       console.log(`  Admin panel:  http://localhost:${PORT}/admin/login`);
       console.log(`  Default admin login: admin@example.com / admin123 (change this!)\n`);
     });
