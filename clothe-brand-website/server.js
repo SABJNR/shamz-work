@@ -156,6 +156,9 @@ app.post('/signup', asyncRoute(async (req, res) => {
   if (!name || !email || !password) {
     return res.render('signup', { error: 'All fields are required.', redirectTo });
   }
+  if (password.length < 8) {
+    return res.render('signup', { error: 'Password must be at least 8 characters.', redirectTo });
+  }
   const existing = await db.users.findByEmail(email);
   if (existing) {
     return res.render('signup', { error: 'An account with this email already exists. Please log in instead.', redirectTo });
@@ -417,8 +420,8 @@ app.post('/admin/change-password', requireAdmin, asyncRoute(async (req, res) => 
   if (!bcrypt.compareSync(current_password || '', user.password_hash)) {
     return res.render('admin/change-password', { error: 'Current password is incorrect.', success: false });
   }
-  if (!new_password || new_password.length < 6) {
-    return res.render('admin/change-password', { error: 'New password must be at least 6 characters.', success: false });
+  if (!new_password || new_password.length < 8) {
+    return res.render('admin/change-password', { error: 'New password must be at least 8 characters.', success: false });
   }
   if (new_password !== confirm_password) {
     return res.render('admin/change-password', { error: 'New password and confirmation do not match.', success: false });
@@ -433,8 +436,8 @@ app.get('/admin/admins', requireAdmin, asyncRoute(async (req, res) => {
 
 app.post('/admin/admins', requireAdmin, asyncRoute(async (req, res) => {
   const { name, email, password } = req.body;
-  if (!name || !email || !password || password.length < 6) {
-    return res.render('admin/admins', { admins: await db.users.listAdmins(), error: 'All fields are required and password must be at least 6 characters.', success: false });
+  if (!name || !email || !password || password.length < 8) {
+    return res.render('admin/admins', { admins: await db.users.listAdmins(), error: 'All fields are required and password must be at least 8 characters.', success: false });
   }
   const existing = await db.users.findByEmail(email);
   if (existing) {
