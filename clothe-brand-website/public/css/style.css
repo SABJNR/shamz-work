@@ -1,16 +1,16 @@
 @import url('https://fonts.googleapis.com/css2?family=Oswald:wght@400;500;600;700&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap');
 
 :root {
-  --canvas: #121214;
-  --paper: #1B1B1D;
-  --paper-raised: #202022;
-  --ink: #F3EFE6;
-  --ink-dim: rgba(243, 239, 230, 0.62);
-  --red: #C81E3A;
-  --gold: #C9A227;
-  --olive: #3A3A35;
-  --line: rgba(243, 239, 230, 0.13);
-  --line-strong: rgba(243, 239, 230, 0.26);
+  --canvas: #16141B;
+  --paper: #1F1B26;
+  --paper-raised: #262030;
+  --ink: #F7F1E6;
+  --ink-dim: rgba(247, 241, 230, 0.66);
+  --red: #E23A50;
+  --gold: #E8B324;
+  --olive: #453B52;
+  --line: rgba(247, 241, 230, 0.14);
+  --line-strong: rgba(247, 241, 230, 0.28);
   --radius: 1px;
 }
 
@@ -114,11 +114,15 @@ a { color: inherit; text-decoration: none; }
 
 /* ---------- Hero ---------- */
 .hero {
-  background: var(--canvas);
+  background:
+    radial-gradient(ellipse 900px 500px at 15% -10%, rgba(226,58,80,0.28), transparent 60%),
+    radial-gradient(ellipse 700px 500px at 100% 10%, rgba(232,179,36,0.14), transparent 60%),
+    var(--canvas);
   color: var(--ink);
-  padding: 88px 0 96px;
+  padding: 96px 0 104px;
   position: relative;
   border-bottom: 1px solid var(--line);
+  overflow: hidden;
 }
 .hero h1 {
   font-size: clamp(40px, 6vw, 68px);
@@ -180,12 +184,12 @@ a { color: inherit; text-decoration: none; }
   transition: background .15s ease;
 }
 .card:hover { background: var(--paper-raised); }
+.card:hover .thumb { box-shadow: inset 0 0 0 1px rgba(226,58,80,0.35); }
 .card .thumb {
   aspect-ratio: 4/5;
   background-size: cover;
   background-position: center;
   position: relative;
-  filter: grayscale(0.08) contrast(1.04);
 }
 /* Signature element: manifest stamp badge */
 .card .badge {
