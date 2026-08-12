@@ -1,6 +1,7 @@
 require('dotenv').config();
 const express = require('express');
 const session = require('express-session');
+const { MongoStore } = require('connect-mongo');
 const methodOverride = require('method-override');
 const bcrypt = require('bcryptjs');
 const multer = require('multer');
@@ -33,10 +34,15 @@ app.use(methodOverride('_method'));
 app.use('/public', express.static(path.join(__dirname, 'public')));
 
 app.use(session({
-  // NOTE: in-memory session store — fine for local dev and low-traffic sites,
-  // but resets on restart and won't scale across multiple instances. Swap in
-  // a persistent store (e.g. connect-mongo, since we already have MongoDB)
-  // if that becomes a problem.
+  // Sessions are stored in MongoDB (same database as everything else) so
+  // logged-in customers/admins stay logged in even when Render's free tier
+  // puts the app to sleep and restarts it, or when you redeploy. Without
+  // this, every restart would wipe everyone's login.
+  store: MongoStore.create({
+    mongoUrl: process.env.MONGODB_URI,
+    collectionName: 'sessions',
+    ttl: 60 * 60 * 24 * 7 // 7 days, matches cookie maxAge below
+  }),
   secret: process.env.SESSION_SECRET || 'change-this-secret-in-production',
   resave: false,
   saveUninitialized: false,
