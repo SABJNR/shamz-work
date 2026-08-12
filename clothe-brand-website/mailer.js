@@ -67,17 +67,20 @@ function verificationEmailHtml({ name, verifyUrl }) {
 }
 
 function orderRowsHtml(order, product) {
+  const isPickup = order.delivery_method === 'pickup';
+  const deliveryLine = isPickup
+    ? `<strong>Pickup at:</strong> ${order.shipping_address || ''}`
+    : `<strong>Deliver to (${order.delivery_zone || 'delivery'}):</strong><br>${order.shipping_address || ''}, ${[order.shipping_city, order.shipping_state].filter(Boolean).join(', ')}`;
   return `
     <table style="width:100%; border-collapse:collapse; margin:16px 0; font-size:14px;">
       <tr><td style="padding:4px 0;color:#666;">Item</td><td style="padding:4px 0;text-align:right;">${product.name}</td></tr>
       <tr><td style="padding:4px 0;color:#666;">Size / Qty</td><td style="padding:4px 0;text-align:right;">${order.size || '—'} / ${order.quantity}</td></tr>
       <tr><td style="padding:4px 0;color:#666;">Item total</td><td style="padding:4px 0;text-align:right;">${formatKobo(order.item_total_kobo)}</td></tr>
-      <tr><td style="padding:4px 0;color:#666;">Delivery fee</td><td style="padding:4px 0;text-align:right;">${formatKobo(order.shipping_fee_kobo)}</td></tr>
+      <tr><td style="padding:4px 0;color:#666;">Delivery fee</td><td style="padding:4px 0;text-align:right;">${isPickup ? 'Free (pickup)' : formatKobo(order.shipping_fee_kobo)}</td></tr>
       <tr><td style="padding:8px 0;font-weight:bold;border-top:1px solid #ddd;">Total</td><td style="padding:8px 0;text-align:right;font-weight:bold;border-top:1px solid #ddd;">${formatKobo(order.amount_kobo)}</td></tr>
     </table>
     <p style="font-size:13.5px;color:#666;">
-      <strong>Deliver to:</strong><br>
-      ${order.shipping_address || ''}, ${[order.shipping_city, order.shipping_state].filter(Boolean).join(', ')}<br>
+      ${deliveryLine}<br>
       Phone: ${order.shipping_phone || '—'}
     </p>
   `;

@@ -9,7 +9,7 @@
     <% } else { %>
       <table>
         <thead>
-          <tr><th>Customer</th><th>Contact</th><th>Item</th><th>Type</th><th>Size / Qty</th><th>Status</th><th>Placed</th></tr>
+          <tr><th>Customer</th><th>Contact</th><th>Item</th><th>Type</th><th>Size / Qty</th><th>Deliver To</th><th>Status</th><th>Placed</th></tr>
         </thead>
         <tbody>
           <% orders.forEach(o => { %>
@@ -19,6 +19,17 @@
               <td><%= o.product_name %></td>
               <td><%= o.type === 'preorder' ? 'Pre-order' : 'Order' %></td>
               <td><%= o.size || '—' %> / <%= o.quantity %></td>
+              <td style="max-width:220px;">
+                <% if (o.delivery_method === 'pickup') { %>
+                  <span style="color:var(--gold);">PICKUP</span><br>
+                  <%= o.shipping_address %>
+                <% } else { %>
+                  <% if (o.delivery_zone) { %><span style="color:var(--ink-dim);"><%= o.delivery_zone %></span><br><% } %>
+                  <%= o.shipping_address || '—' %><br>
+                  <%= [o.shipping_city, o.shipping_state].filter(Boolean).join(', ') %><br>
+                <% } %>
+                <% if (o.shipping_phone) { %><span style="color:var(--ink-dim);"><%= o.shipping_phone %></span><% } %>
+              </td>
               <td>
                 <form method="POST" action="/admin/orders/<%= o.id %>/status?_method=PUT" style="display:flex;gap:6px;align-items:center;">
                   <select name="status" onchange="this.form.submit()">

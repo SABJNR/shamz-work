@@ -74,10 +74,30 @@ function baseUrl(req) {
 }
 
 // Flat shipping fee in kobo, configurable via env var. Defaults to ₦2,000.
-function shippingFeeKobo() {
-  const raw = process.env.SHIPPING_FEE_KOBO;
-  const parsed = raw !== undefined ? parseInt(raw, 10) : NaN;
-  return Number.isFinite(parsed) ? parsed : 200000;
+// Delivery zones with per-zone fees. Configurable via env vars (in kobo) so
+// you can adjust prices without touching code. Falls back to sensible
+// defaults matching current rates if not set.
+function deliveryZones() {
+  const zone = (envKey, label, defaultKobo) => ({
+    key: envKey.toLowerCase(),
+    label,
+    feeKobo: Number.isFinite(parseInt(process.env[envKey], 10)) ? parseInt(process.env[envKey], 10) : defaultKobo
+  });
+  return [
+    zone('ZONE_LAGOS_MAINLAND_KOBO', 'Lagos Mainland', 500000),
+    zone('ZONE_LAGOS_ISLAND_KOBO', 'Lagos Island', 700000),
+    zone('ZONE_PORT_HARCOURT_KOBO', 'Port Harcourt', 700000),
+    zone('ZONE_ABUJA_KOBO', 'Abuja', 1000000),
+    zone('ZONE_OTHER_KOBO', 'Other location (fee confirmed after order)', 700000)
+  ];
+}
+
+function pickupLocation() {
+  return process.env.PICKUP_LOCATION || 'Omole Phase 1, Lagos';
+}
+
+function findDeliveryZone(key) {
+  return deliveryZones().find(z => z.key === key) || null;
 }
 
 async function notifyAdminOfOrder(order, product, customer) {
@@ -172,7 +192,7 @@ app.get('/product/:id', asyncRoute(async (req, res) => {
     alreadyWaitlisted = await db.waitlist.has(req.session.user.id, product.id);
     profileUser = await db.users.findById(req.session.user.id);
   }
-  res.render('product', { product, alreadyWaitlisted, profileUser, paystackEnabled: paystack.isConfigured(), shippingFee: shippingFeeKobo() });
+  res.render('product', { product, alreadyWaitlisted, profileUser, paystackEnabled: paystack.isConfigured(), zones: deliveryZones(), pickupLocation: pickupLocation() });
 }));
 
 // =====================================================
@@ -305,12 +325,22 @@ app.post('/profile', requireLogin, asyncRoute(async (req, res) => {
 app.post('/order/:productId', requireVerified, asyncRoute(async (req, res) => {
   const product = await db.products.find(req.params.productId);
   if (!product) return res.status(404).render('404');
-  const { size, quantity, shipping_address, shipping_city, shipping_state, shipping_phone, note } = req.body;
+  const { size, quantity, delivery_method, delivery_zone, shipping_address, shipping_city, shipping_state, shipping_phone, note } = req.body;
   const qty = Number(quantity) || 1;
 
   const type = product.status === 'unreleased' ? 'preorder' : 'order';
-  const shipFee = shippingFeeKobo();
   const itemTotal = product.price * qty;
+
+  const isPickup = delivery_method === 'pickup';
+  let shipFee = 0;
+  let zoneLabel = null;
+  if (isPickup) {
+    shipFee = 0;
+  } else {
+    const zone = findDeliveryZone(delivery_zone);
+    shipFee = zone ? zone.feeKobo : findDeliveryZone('zone_other_kobo').feeKobo;
+    zoneLabel = zone ? zone.label : null;
+  }
 
   const order = await db.orders.create({
     user_id: req.session.user.id,
@@ -318,9 +348,11 @@ app.post('/order/:productId', requireVerified, asyncRoute(async (req, res) => {
     size,
     quantity: qty,
     type,
-    shipping_address,
-    shipping_city,
-    shipping_state,
+    delivery_method: isPickup ? 'pickup' : 'delivery',
+    delivery_zone: zoneLabel,
+    shipping_address: isPickup ? pickupLocation() : shipping_address,
+    shipping_city: isPickup ? '' : shipping_city,
+    shipping_state: isPickup ? '' : shipping_state,
     shipping_phone,
     note: note || '',
     item_total_kobo: itemTotal,
