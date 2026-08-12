@@ -5,7 +5,7 @@
 // your local .env file):
 //   BREVO_API_KEY      - your Brevo API key (Settings -> SMTP & API -> API Keys)
 //   BREVO_SENDER_EMAIL - the email address you verified as a sender in Brevo
-//   BREVO_SENDER_NAME  - (optional) display name, defaults to "F.D.C Clothing Store"
+//   BREVO_SENDER_NAME  - (optional) display name, defaults to "Shamz Clothing Store"
 //
 // If these aren't set, emails are skipped and logged to the console instead —
 // this lets the rest of the app keep working during local development without
@@ -14,7 +14,7 @@
 async function sendEmail({ to, toName, subject, html }) {
   const apiKey = process.env.BREVO_API_KEY;
   const senderEmail = process.env.BREVO_SENDER_EMAIL;
-  const senderName = process.env.BREVO_SENDER_NAME || 'F.D.C Clothing Store';
+  const senderName = process.env.BREVO_SENDER_NAME || 'Shamz Clothing Store';
 
   if (!apiKey || !senderEmail) {
     console.log(`\n[mailer] BREVO_API_KEY / BREVO_SENDER_EMAIL not set — skipping real email.`);
@@ -47,13 +47,16 @@ async function sendEmail({ to, toName, subject, html }) {
   return await res.json();
 }
 
+const BRAND_NAME = process.env.BREVO_SENDER_NAME || 'F.D.C Clothing Store';
+const BRAND_COLOR = '#E23A50';
+
 function verificationEmailHtml({ name, verifyUrl }) {
   return `
     <div style="font-family: sans-serif; max-width: 480px; margin: 0 auto;">
-      <h2 style="color:#2B3A6B;">Welcome to F.D.C Clothing Store, ${name}!</h2>
+      <h2 style="color:${BRAND_COLOR};">Welcome to ${BRAND_NAME}, ${name}!</h2>
       <p>Please confirm your email address to activate your account and start ordering.</p>
       <p style="margin: 28px 0;">
-        <a href="${verifyUrl}" style="background:#B2502A;color:#fff;padding:12px 24px;text-decoration:none;border-radius:2px;display:inline-block;">
+        <a href="${verifyUrl}" style="background:${BRAND_COLOR};color:#fff;padding:12px 24px;text-decoration:none;border-radius:2px;display:inline-block;">
           Verify my email
         </a>
       </p>
@@ -63,4 +66,51 @@ function verificationEmailHtml({ name, verifyUrl }) {
   `;
 }
 
-module.exports = { sendEmail, verificationEmailHtml };
+function orderRowsHtml(order, product) {
+  return `
+    <table style="width:100%; border-collapse:collapse; margin:16px 0; font-size:14px;">
+      <tr><td style="padding:4px 0;color:#666;">Item</td><td style="padding:4px 0;text-align:right;">${product.name}</td></tr>
+      <tr><td style="padding:4px 0;color:#666;">Size / Qty</td><td style="padding:4px 0;text-align:right;">${order.size || '—'} / ${order.quantity}</td></tr>
+      <tr><td style="padding:4px 0;color:#666;">Item total</td><td style="padding:4px 0;text-align:right;">${formatKobo(order.item_total_kobo)}</td></tr>
+      <tr><td style="padding:4px 0;color:#666;">Delivery fee</td><td style="padding:4px 0;text-align:right;">${formatKobo(order.shipping_fee_kobo)}</td></tr>
+      <tr><td style="padding:8px 0;font-weight:bold;border-top:1px solid #ddd;">Total</td><td style="padding:8px 0;text-align:right;font-weight:bold;border-top:1px solid #ddd;">${formatKobo(order.amount_kobo)}</td></tr>
+    </table>
+    <p style="font-size:13.5px;color:#666;">
+      <strong>Deliver to:</strong><br>
+      ${order.shipping_address || ''}, ${[order.shipping_city, order.shipping_state].filter(Boolean).join(', ')}<br>
+      Phone: ${order.shipping_phone || '—'}
+    </p>
+  `;
+}
+
+function formatKobo(kobo) {
+  const n = Number(kobo) || 0;
+  return '₦' + (n / 100).toLocaleString('en-NG', { minimumFractionDigits: 2 });
+}
+
+// Sent to the store admin the moment a new order/pre-order comes in.
+function orderNotificationEmailHtml({ order, product, customer }) {
+  return `
+    <div style="font-family: sans-serif; max-width: 520px; margin: 0 auto;">
+      <h2 style="color:${BRAND_COLOR};">🔔 New ${order.type === 'preorder' ? 'pre-order' : 'order'} received</h2>
+      <p><strong>${customer.name}</strong> (${customer.email}) just placed an order.</p>
+      ${orderRowsHtml(order, product)}
+      <p style="font-size:13px;color:#999;">Order reference: ${order.id}</p>
+    </div>
+  `;
+}
+
+// Sent to the customer after their payment is confirmed.
+function orderReceiptEmailHtml({ order, product, customerName }) {
+  return `
+    <div style="font-family: sans-serif; max-width: 520px; margin: 0 auto;">
+      <h2 style="color:${BRAND_COLOR};">Thanks for your order, ${customerName}! ✅</h2>
+      <p>Your payment was successful and your ${order.type === 'preorder' ? 'pre-order' : 'order'} is confirmed.</p>
+      ${orderRowsHtml(order, product)}
+      <p style="font-size:13px;color:#999;">Order reference: ${order.id}</p>
+      <p style="font-size:13px;color:#666;">Questions about this order? Just reply to this email.</p>
+    </div>
+  `;
+}
+
+module.exports = { sendEmail, verificationEmailHtml, orderNotificationEmailHtml, orderReceiptEmailHtml };

@@ -2,9 +2,6 @@
 
 <%
   const isVerified = currentUser && !currentUser.is_admin && currentUser.email_verified === 1;
-  const prefillAddress = profileUser && profileUser.address
-    ? [profileUser.address, profileUser.city, profileUser.state].filter(Boolean).join(', ')
-    : '';
 %>
 
 <div class="container">
@@ -36,7 +33,7 @@
           </form>
 
         <% } else { %>
-          <form method="POST" action="/order/<%= product.id %>">
+          <form method="POST" action="/order/<%= product.id %>" id="orderForm">
             <div class="field">
               <label>Size</label>
               <select name="size">
@@ -47,22 +44,106 @@
             </div>
             <div class="field">
               <label>Quantity</label>
-              <input type="number" name="quantity" value="1" min="1">
+              <input type="number" name="quantity" id="qtyInput" value="1" min="1">
+            </div>
+
+            <div class="field" style="display:flex;justify-content:space-between;align-items:baseline;">
+              <label style="margin:0;">Delivery address</label>
+              <button type="button" id="useLocationBtn" class="helper-note" style="background:none;border:none;text-decoration:underline;cursor:pointer;padding:0;font-family:inherit;">📍 Use my current location</button>
             </div>
             <div class="field">
-              <label>Shipping address</label>
-              <textarea name="shipping_address" placeholder="Where should we deliver this?" required><%= prefillAddress %></textarea>
-              <p class="helper-note" style="margin-top:6px;"><a href="/profile" style="text-decoration:underline;">Update your saved address</a></p>
+              <label>Delivery phone number</label>
+              <input type="tel" name="shipping_phone" value="<%= profileUser && profileUser.phone ? profileUser.phone : '' %>" placeholder="For the courier to reach you" required>
             </div>
+            <div class="field">
+              <label>Street address</label>
+              <input type="text" name="shipping_address" id="addrStreet" value="<%= profileUser && profileUser.address ? profileUser.address : '' %>" placeholder="House number, street name" required>
+            </div>
+            <div class="field">
+              <label>City</label>
+              <input type="text" name="shipping_city" id="addrCity" value="<%= profileUser && profileUser.city ? profileUser.city : '' %>" required>
+            </div>
+            <div class="field">
+              <label>State</label>
+              <input type="text" name="shipping_state" id="addrState" value="<%= profileUser && profileUser.state ? profileUser.state : '' %>" required>
+            </div>
+            <p id="locationStatus" class="helper-note" style="margin-top:-8px;margin-bottom:18px;"></p>
+            <p class="helper-note" style="margin-top:-8px;margin-bottom:18px;"><a href="/profile" style="text-decoration:underline;">Update your saved address</a> to skip typing this next time.</p>
             <% if (!isPreorder) { %>
               <div class="field">
                 <label>Note (optional)</label>
                 <textarea name="note" placeholder="Anything else we should know?"></textarea>
               </div>
             <% } %>
+
+            <div class="field" style="border-top:1px solid var(--line);padding-top:16px;">
+              <div style="display:flex;justify-content:space-between;font-size:13.5px;color:var(--ink-dim);margin-bottom:6px;">
+                <span>Item (<span id="qtyDisplay">1</span>×)</span>
+                <span id="itemTotalDisplay"><%= formatPrice(product.price, product.currency) %></span>
+              </div>
+              <div style="display:flex;justify-content:space-between;font-size:13.5px;color:var(--ink-dim);margin-bottom:10px;">
+                <span>Delivery fee</span>
+                <span><%= formatPrice(shippingFee, product.currency) %></span>
+              </div>
+              <div style="display:flex;justify-content:space-between;font-family:'IBM Plex Mono',monospace;font-weight:600;font-size:16px;">
+                <span>Total</span>
+                <span id="totalDisplay"><%= formatPrice(product.price + shippingFee, product.currency) %></span>
+              </div>
+            </div>
+
             <button type="submit" class="btn <%= isPreorder ? 'btn-ochre' : 'btn-primary' %> btn-block"><%= isPreorder ? 'Reserve with a pre-order' : 'Place order' %></button>
             <p class="helper-note"><%= isPreorder ? (paystackEnabled ? "You'll pay now to secure your spot — production and ship dates will be confirmed by email." : "This is a pre-order for an unreleased piece — production and ship dates will be confirmed by email.") : (paystackEnabled ? "You'll be taken to a secure payment page to complete your order." : "Payment isn't collected online yet — we'll reach out to confirm payment and delivery details.") %></p>
           </form>
+
+          <script>
+            (function() {
+              var unitPrice = <%= product.price %>;
+              var shipFee = <%= shippingFee %>;
+              var currency = <%= JSON.stringify(product.currency) %>;
+              function formatPrice(kobo) {
+                var amount = (kobo / 100).toLocaleString('en-NG', { minimumFractionDigits: 2 });
+                var symbol = currency === 'NGN' ? '₦' : currency + ' ';
+                return symbol + amount;
+              }
+              var qtyInput = document.getElementById('qtyInput');
+              qtyInput.addEventListener('input', function() {
+                var qty = parseInt(qtyInput.value, 10) || 1;
+                document.getElementById('qtyDisplay').textContent = qty;
+                document.getElementById('itemTotalDisplay').textContent = formatPrice(unitPrice * qty);
+                document.getElementById('totalDisplay').textContent = formatPrice(unitPrice * qty + shipFee);
+              });
+
+              var btn = document.getElementById('useLocationBtn');
+              var status = document.getElementById('locationStatus');
+              btn.addEventListener('click', function() {
+                if (!navigator.geolocation) {
+                  status.textContent = "Your browser doesn't support location detection.";
+                  return;
+                }
+                status.textContent = 'Detecting your location…';
+                navigator.geolocation.getCurrentPosition(function(pos) {
+                  var lat = pos.coords.latitude, lon = pos.coords.longitude;
+                  fetch('https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=' + lat + '&lon=' + lon)
+                    .then(function(r) { return r.json(); })
+                    .then(function(data) {
+                      var a = data.address || {};
+                      var street = [a.house_number, a.road].filter(Boolean).join(' ') || a.neighbourhood || '';
+                      var city = a.city || a.town || a.village || a.county || '';
+                      var state = a.state || '';
+                      if (street) document.getElementById('addrStreet').value = street;
+                      if (city) document.getElementById('addrCity').value = city;
+                      if (state) document.getElementById('addrState').value = state;
+                      status.textContent = 'Location filled in — please double-check it looks right.';
+                    })
+                    .catch(function() {
+                      status.textContent = "Couldn't look up your address. Please type it in manually.";
+                    });
+                }, function() {
+                  status.textContent = 'Location access denied — please type your address manually.';
+                });
+              });
+            })();
+          </script>
         <% } %>
 
       <% } else { %>

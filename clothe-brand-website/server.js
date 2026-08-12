@@ -7,7 +7,7 @@ const multer = require('multer');
 const path = require('path');
 const cloudinary = require('cloudinary').v2;
 const db = require('./db');
-const { sendEmail, verificationEmailHtml } = require('./mailer');
+const { sendEmail, verificationEmailHtml, orderNotificationEmailHtml, orderReceiptEmailHtml } = require('./mailer');
 const paystack = require('./paystack');
 
 const app = express();
@@ -73,6 +73,28 @@ function baseUrl(req) {
   return process.env.APP_BASE_URL || `${req.protocol}://${req.get('host')}`;
 }
 
+// Flat shipping fee in kobo, configurable via env var. Defaults to ₦2,000.
+function shippingFeeKobo() {
+  const raw = process.env.SHIPPING_FEE_KOBO;
+  const parsed = raw !== undefined ? parseInt(raw, 10) : NaN;
+  return Number.isFinite(parsed) ? parsed : 200000;
+}
+
+async function notifyAdminOfOrder(order, product, customer) {
+  const adminEmail = process.env.ADMIN_NOTIFICATION_EMAIL || process.env.BREVO_SENDER_EMAIL;
+  if (!adminEmail) return; // no address configured to notify -- skip quietly
+  try {
+    await sendEmail({
+      to: adminEmail,
+      toName: 'Admin',
+      subject: `New ${order.type === 'preorder' ? 'pre-order' : 'order'}: ${product.name}`,
+      html: orderNotificationEmailHtml({ order, product, customer })
+    });
+  } catch (e) {
+    console.error('Failed to send admin order notification:', e.message);
+  }
+}
+
 // Small helper so we don't need try/catch in every single async route.
 function asyncRoute(fn) {
   return (req, res, next) => fn(req, res, next).catch(next);
@@ -134,6 +156,13 @@ app.get('/', asyncRoute(async (req, res) => {
   res.render('home', { available: await db.products.available(), unreleased: await db.products.unreleased() });
 }));
 
+app.get('/policies', (req, res) => {
+  res.render('policies', {
+    supportEmail: process.env.SUPPORT_EMAIL || process.env.BREVO_SENDER_EMAIL || 'contact us',
+    supportPhone: process.env.SUPPORT_PHONE || ''
+  });
+});
+
 app.get('/product/:id', asyncRoute(async (req, res) => {
   const product = await db.products.find(req.params.id);
   if (!product) return res.status(404).render('404');
@@ -143,7 +172,7 @@ app.get('/product/:id', asyncRoute(async (req, res) => {
     alreadyWaitlisted = await db.waitlist.has(req.session.user.id, product.id);
     profileUser = await db.users.findById(req.session.user.id);
   }
-  res.render('product', { product, alreadyWaitlisted, profileUser, paystackEnabled: paystack.isConfigured() });
+  res.render('product', { product, alreadyWaitlisted, profileUser, paystackEnabled: paystack.isConfigured(), shippingFee: shippingFeeKobo() });
 }));
 
 // =====================================================
@@ -276,10 +305,12 @@ app.post('/profile', requireLogin, asyncRoute(async (req, res) => {
 app.post('/order/:productId', requireVerified, asyncRoute(async (req, res) => {
   const product = await db.products.find(req.params.productId);
   if (!product) return res.status(404).render('404');
-  const { size, quantity, shipping_address, note } = req.body;
+  const { size, quantity, shipping_address, shipping_city, shipping_state, shipping_phone, note } = req.body;
   const qty = Number(quantity) || 1;
 
   const type = product.status === 'unreleased' ? 'preorder' : 'order';
+  const shipFee = shippingFeeKobo();
+  const itemTotal = product.price * qty;
 
   const order = await db.orders.create({
     user_id: req.session.user.id,
@@ -288,14 +319,20 @@ app.post('/order/:productId', requireVerified, asyncRoute(async (req, res) => {
     quantity: qty,
     type,
     shipping_address,
+    shipping_city,
+    shipping_state,
+    shipping_phone,
     note: note || '',
-    amount_kobo: product.price * qty
+    item_total_kobo: itemTotal,
+    shipping_fee_kobo: shipFee,
+    amount_kobo: itemTotal + shipFee
   });
 
   // If Paystack isn't set up yet, fall back to the old manual-payment flow
   // (order gets recorded, admin follows up to collect payment directly) so
   // the site keeps working while you're waiting on a Paystack account.
   if (!paystack.isConfigured()) {
+    await notifyAdminOfOrder(order, product, req.session.user);
     return res.render('order-confirmation', { product, paid: false, paystackEnabled: false });
   }
 
@@ -330,6 +367,20 @@ app.get('/payment/callback', asyncRoute(async (req, res) => {
     const verification = await paystack.verifyPayment(reference);
     if (verification.success && verification.amountInKobo === order.amount_kobo) {
       await db.orders.update(order.id, { status: 'confirmed' });
+      const customer = await db.users.findById(order.user_id);
+      await notifyAdminOfOrder(order, product, customer);
+      if (customer) {
+        try {
+          await sendEmail({
+            to: customer.email,
+            toName: customer.name,
+            subject: `Order confirmed: ${product.name}`,
+            html: orderReceiptEmailHtml({ order, product, customerName: customer.name })
+          });
+        } catch (e) {
+          console.error('Failed to send customer receipt:', e.message);
+        }
+      }
       return res.render('order-confirmation', { product, paid: true, paystackEnabled: true });
     }
     await db.orders.update(order.id, { status: 'cancelled' });

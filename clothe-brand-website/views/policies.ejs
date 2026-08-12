@@ -1,0 +1,33 @@
+<%- include('partials/header', { title: 'Policies' }) %>
+
+<div class="container">
+  <section class="section" style="max-width:760px;">
+    <div class="section-head">
+      <h2>Policies</h2>
+    </div>
+
+    <div style="font-size:14.5px;color:var(--ink-dim);line-height:1.8;">
+
+      <h3 style="color:var(--ink);font-size:18px;margin-top:0;">Delivery Policy</h3>
+      <p>We deliver within Nigeria. Orders are typically shipped within 3–5 business days of payment confirmation. Pre-orders ship according to the production timeline stated on the product page, and we'll keep you updated by email. A flat delivery fee is added at checkout and shown before you pay.</p>
+
+      <h3 style="color:var(--ink);font-size:18px;">Returns &amp; Refunds</h3>
+      <p>If an item arrives damaged, incorrect, or significantly different from what was ordered, contact us within 48 hours of delivery with your order reference and photos of the item. We'll arrange a replacement or refund at our discretion.</p>
+      <p>Refunds, once approved, are processed back to your original payment method via Paystack and typically take 5–10 business days to reflect, depending on your bank.</p>
+      <p>Items must be unworn, unwashed, and in their original condition to be eligible for return. Custom or made-to-order pre-order pieces are only eligible for return if defective on arrival.</p>
+
+      <h3 style="color:var(--ink);font-size:18px;">Order Cancellations</h3>
+      <p>You can cancel an order before it ships by contacting us directly. Once an order has shipped, it can no longer be cancelled — please refer to our Returns policy above instead.</p>
+
+      <h3 style="color:var(--ink);font-size:18px;">Customer Service</h3>
+      <p>For any questions about an order, delivery, or this policy, reach us at:</p>
+      <p>
+        Email: <a href="mailto:<%= supportEmail %>" style="text-decoration:underline;"><%= supportEmail %></a><br>
+        <% if (supportPhone) { %>Phone/WhatsApp: <%= supportPhone %><% } %>
+      </p>
+
+    </div>
+  </section>
+</div>
+
+<%- include('partials/footer') %>
