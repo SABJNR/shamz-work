@@ -93,8 +93,7 @@ function deliveryZones() {
     zone('ZONE_LAGOS_MAINLAND_KOBO', 'Lagos Mainland', 500000),
     zone('ZONE_LAGOS_ISLAND_KOBO', 'Lagos Island', 700000),
     zone('ZONE_PORT_HARCOURT_KOBO', 'Port Harcourt', 700000),
-    zone('ZONE_ABUJA_KOBO', 'Abuja', 1000000),
-    zone('ZONE_OTHER_KOBO', 'Other location (fee confirmed after order)', 700000)
+    zone('ZONE_ABUJA_KOBO', 'Abuja', 700000)
   ];
 }
 
@@ -332,7 +331,7 @@ app.post('/order/:productId', requireVerified, asyncRoute(async (req, res) => {
   const product = await db.products.find(req.params.productId);
   if (!product) return res.status(404).render('404');
   const { size, quantity, delivery_method, delivery_zone, shipping_address, shipping_city, shipping_state, shipping_phone, note } = req.body;
-  const qty = Number(quantity) || 1;
+  const qty = Math.max(1, Number.parseInt(quantity, 10) || 1);
 
   const type = product.status === 'unreleased' ? 'preorder' : 'order';
   const itemTotal = product.price * qty;
@@ -343,8 +342,8 @@ app.post('/order/:productId', requireVerified, asyncRoute(async (req, res) => {
   if (isPickup) {
     shipFee = 0;
   } else {
-    const zone = findDeliveryZone(delivery_zone);
-    shipFee = zone ? zone.feeKobo : findDeliveryZone('zone_other_kobo').feeKobo;
+    const zone = findDeliveryZone(delivery_zone) || deliveryZones()[0];
+    shipFee = zone ? zone.feeKobo : 0;
     zoneLabel = zone ? zone.label : null;
   }
 

@@ -1,253 +1,311 @@
 <%- include('partials/header', { title: product.name }) %>
 
-<%
-  const isVerified = currentUser && !currentUser.is_admin && currentUser.email_verified === 1;
-%>
+  <% const isVerified=currentUser && !currentUser.is_admin && currentUser.email_verified===1; %>
 
-<div class="container">
-  <div class="product-detail">
-    <div class="thumb" style="background-image:url('<%= product.image_url %>')"></div>
-    <div>
-      <% if (product.status === 'unreleased') { %>
-        <div class="status-line"><%= product.allow_preorder ? 'Pre-order · Unreleased' : 'Preview only · Coming soon' %></div>
-      <% } else { %>
-        <div class="status-line">In stock</div>
-      <% } %>
-      <h1><%= product.name %></h1>
-      <div class="price"><%= formatPrice(product.price, product.currency) %></div>
-      <p class="desc"><%= product.description %></p>
-
-      <% if (product.status === 'available' || (product.status === 'unreleased' && product.allow_preorder)) { %>
-        <% const isPreorder = product.status === 'unreleased'; %>
-
-        <% if (!currentUser) { %>
-          <a href="/login?redirectTo=/product/<%= product.id %>" class="btn <%= isPreorder ? 'btn-ochre' : 'btn-primary' %> btn-block"><%= isPreorder ? 'Log in to pre-order' : 'Log in to order' %></a>
-          <p class="helper-note">New here? <a href="/signup?redirectTo=/product/<%= product.id %>" style="text-decoration:underline;">Create an account</a> — it only takes a minute.</p>
-
-        <% } else if (!isVerified) { %>
-          <div class="error-msg" style="background:#f3e4c9;color:#8a5a13;border-left-color:#8a5a13;">
-            Please verify your email before <%= isPreorder ? 'pre-ordering' : 'ordering' %>.
-          </div>
-          <form method="POST" action="/resend-verification">
-            <button type="submit" class="btn btn-secondary btn-block">Resend verification email</button>
-          </form>
-
-        <% } else { %>
-          <form method="POST" action="/order/<%= product.id %>" id="orderForm">
-            <div class="field">
-              <label>Size</label>
-              <select name="size">
-                <% product.sizes.split(',').forEach(s => { %>
-                  <option value="<%= s.trim() %>"><%= s.trim() %></option>
-                <% }) %>
-              </select>
+    <div class="container">
+      <div class="product-detail">
+        <div class="thumb" style="background-image:url('<%= product.image_url %>')"></div>
+        <div>
+          <% if (product.status==='unreleased' ) { %>
+            <div class="status-line">
+              <%= product.allow_preorder ? 'Pre-order · Unreleased' : 'Preview only · Coming soon' %>
             </div>
-            <div class="field">
-              <label>Quantity</label>
-              <input type="number" name="quantity" id="qtyInput" value="1" min="1">
-            </div>
+            <% } else { %>
+              <div class="status-line">In stock</div>
+              <% } %>
+                <h1>
+                  <%= product.name %>
+                </h1>
+                <div class="price">
+                  <%= formatPrice(product.price, product.currency) %>
+                </div>
+                <p class="desc">
+                  <%= product.description %>
+                </p>
 
-            <div class="field">
-              <label>How will you get your order?</label>
-              <select name="delivery_method" id="deliveryMethod">
-                <option value="delivery">Delivery</option>
-                <option value="pickup">Pick up myself — <%= pickupLocation %> (free)</option>
-              </select>
-            </div>
+                <% if (product.status==='available' || (product.status==='unreleased' && product.allow_preorder)) { %>
+                  <% const isPreorder=product.status==='unreleased' ; %>
 
-            <div id="deliverySection">
-              <div class="field">
-                <label>Delivery zone</label>
-                <select name="delivery_zone" id="deliveryZone">
-                  <% zones.forEach(z => { %>
-                    <option value="<%= z.key %>" data-fee="<%= z.feeKobo %>"><%= z.label %> — <%= formatPrice(z.feeKobo, product.currency) %></option>
-                  <% }) %>
-                </select>
-              </div>
+                    <% if (!currentUser) { %>
+                      <a href="/login?redirectTo=/product/<%= product.id %>"
+                        class="btn <%= isPreorder ? 'btn-ochre' : 'btn-primary' %> btn-block">
+                        <%= isPreorder ? 'Log in to pre-order' : 'Log in to order' %>
+                      </a>
+                      <p class="helper-note">New here? <a href="/signup?redirectTo=/product/<%= product.id %>"
+                          style="text-decoration:underline;">Create an account</a> — it only takes a minute.</p>
 
-              <div class="field" style="display:flex;justify-content:space-between;align-items:baseline;">
-                <label style="margin:0;">Delivery address</label>
-                <button type="button" id="useLocationBtn" class="helper-note" style="background:none;border:none;text-decoration:underline;cursor:pointer;padding:0;font-family:inherit;">📍 Use my current location</button>
-              </div>
-              <div class="field">
-                <label>Street address</label>
-                <input type="text" name="shipping_address" id="addrStreet" value="<%= profileUser && profileUser.address ? profileUser.address : '' %>" placeholder="House number, street name">
-              </div>
-              <div class="field">
-                <label>City</label>
-                <input type="text" name="shipping_city" id="addrCity" value="<%= profileUser && profileUser.city ? profileUser.city : '' %>">
-              </div>
-              <div class="field">
-                <label>State</label>
-                <input type="text" name="shipping_state" id="addrState" value="<%= profileUser && profileUser.state ? profileUser.state : '' %>">
-              </div>
-              <p id="locationStatus" class="helper-note" style="margin-top:-8px;margin-bottom:18px;"></p>
-              <p class="helper-note" style="margin-top:-8px;margin-bottom:18px;"><a href="/profile" style="text-decoration:underline;">Update your saved address</a> to skip typing this next time.</p>
-            </div>
+                      <% } else if (!isVerified) { %>
+                        <div class="error-msg" style="background:#f3e4c9;color:#8a5a13;border-left-color:#8a5a13;">
+                          Please verify your email before <%= isPreorder ? 'pre-ordering' : 'ordering' %>.
+                        </div>
+                        <form method="POST" action="/resend-verification">
+                          <button type="submit" class="btn btn-secondary btn-block">Resend verification email</button>
+                        </form>
 
-            <div id="pickupSection" style="display:none;">
-              <div class="error-msg" style="background:rgba(232,179,36,0.1);color:var(--gold);border-left-color:var(--gold);">
-                You'll pick this up in person at: <strong><%= pickupLocation %></strong>. We'll email you when it's ready.
-              </div>
-            </div>
+                        <% } else { %>
+                          <form method="POST" action="/order/<%= product.id %>" id="orderForm">
+                            <div class="field">
+                              <label>Size</label>
+                              <select name="size">
+                                <% product.sizes.split(',').forEach(s=> { %>
+                                  <option value="<%= s.trim() %>">
+                                    <%= s.trim() %>
+                                  </option>
+                                  <% }) %>
+                              </select>
+                            </div>
+                            <div class="field">
+                              <label>Quantity</label>
+                              <input type="number" name="quantity" id="qtyInput" value="1" min="1" step="1">
+                            </div>
 
-            <div class="field">
-              <label>Delivery phone number</label>
-              <input type="tel" name="shipping_phone" value="<%= profileUser && profileUser.phone ? profileUser.phone : '' %>" placeholder="So we/the courier can reach you" required>
-            </div>
+                            <div class="field">
+                              <label>How will you get your order?</label>
+                              <select name="delivery_method" id="deliveryMethod">
+                                <option value="delivery">Delivery</option>
+                                <option value="pickup">Pick up myself — <%= pickupLocation %> (free)</option>
+                              </select>
+                            </div>
 
-            <% if (!isPreorder) { %>
-              <div class="field">
-                <label>Note (optional)</label>
-                <textarea name="note" placeholder="Anything else we should know?"></textarea>
-              </div>
-            <% } %>
+                            <div id="deliverySection">
+                              <div class="field">
+                                <label>Delivery zone</label>
+                                <select name="delivery_zone" id="deliveryZone">
+                                  <% zones.forEach(z=> { %>
+                                    <option value="<%= z.key %>" data-fee="<%= z.feeKobo %>">
+                                      <%= z.label %> — <%= formatPrice(z.feeKobo, product.currency) %>
+                                    </option>
+                                    <% }) %>
+                                </select>
+                              </div>
 
-            <div class="field" style="border-top:1px solid var(--line);padding-top:16px;">
-              <div style="display:flex;justify-content:space-between;font-size:13.5px;color:var(--ink-dim);margin-bottom:6px;">
-                <span>Item (<span id="qtyDisplay">1</span>×)</span>
-                <span id="itemTotalDisplay"><%= formatPrice(product.price, product.currency) %></span>
-              </div>
-              <div style="display:flex;justify-content:space-between;font-size:13.5px;color:var(--ink-dim);margin-bottom:10px;">
-                <span>Delivery fee</span>
-                <span id="shipFeeDisplay"><%= formatPrice(zones[0].feeKobo, product.currency) %></span>
-              </div>
-              <div style="display:flex;justify-content:space-between;font-family:'IBM Plex Mono',monospace;font-weight:600;font-size:16px;">
-                <span>Total</span>
-                <span id="totalDisplay"><%= formatPrice(product.price + zones[0].feeKobo, product.currency) %></span>
-              </div>
-            </div>
+                              <div class="field"
+                                style="display:flex;justify-content:space-between;align-items:baseline;">
+                                <label style="margin:0;">Delivery address</label>
+                                <button type="button" id="useLocationBtn" class="helper-note"
+                                  style="background:none;border:none;text-decoration:underline;cursor:pointer;padding:0;font-family:inherit;">📍
+                                  Use my current location</button>
+                              </div>
+                              <div class="field">
+                                <label>Street address</label>
+                                <input type="text" name="shipping_address" id="addrStreet"
+                                  value="<%= profileUser && profileUser.address ? profileUser.address : '' %>"
+                                  placeholder="House number, street name">
+                              </div>
+                              <div class="field">
+                                <label>City</label>
+                                <input type="text" name="shipping_city" id="addrCity"
+                                  value="<%= profileUser && profileUser.city ? profileUser.city : '' %>">
+                              </div>
+                              <div class="field">
+                                <label>State</label>
+                                <input type="text" name="shipping_state" id="addrState"
+                                  value="<%= profileUser && profileUser.state ? profileUser.state : '' %>">
+                              </div>
+                              <p id="locationStatus" class="helper-note" style="margin-top:-8px;margin-bottom:18px;">
+                              </p>
+                              <p class="helper-note" style="margin-top:-8px;margin-bottom:18px;"><a href="/profile"
+                                  style="text-decoration:underline;">Update your saved address</a> to skip typing this
+                                next time.</p>
+                            </div>
 
-            <button type="submit" class="btn <%= isPreorder ? 'btn-ochre' : 'btn-primary' %> btn-block"><%= isPreorder ? 'Reserve with a pre-order' : 'Place order' %></button>
-            <p class="helper-note"><%= isPreorder ? (paystackEnabled ? "You'll pay now to secure your spot — production and ship dates will be confirmed by email." : "This is a pre-order for an unreleased piece — production and ship dates will be confirmed by email.") : (paystackEnabled ? "You'll be taken to a secure payment page to complete your order." : "Payment isn't collected online yet — we'll reach out to confirm payment and delivery details.") %></p>
-          </form>
+                            <div id="pickupSection" style="display:none;">
+                              <div class="error-msg"
+                                style="background:rgba(232,179,36,0.1);color:var(--gold);border-left-color:var(--gold);">
+                                You'll pick this up in person at: <strong>
+                                  <%= pickupLocation %>
+                                </strong>. We'll email you when it's ready.
+                              </div>
+                            </div>
 
-          <script>
-            (function() {
-              var unitPrice = <%= product.price %>;
-              var currency = <%= JSON.stringify(product.currency) %>;
-              function formatPrice(kobo) {
-                var amount = (kobo / 100).toLocaleString('en-NG', { minimumFractionDigits: 2 });
-                var symbol = currency === 'NGN' ? '₦' : currency + ' ';
-                return symbol + amount;
-              }
+                            <div class="field">
+                              <label>Delivery phone number</label>
+                              <input type="tel" name="shipping_phone"
+                                value="<%= profileUser && profileUser.phone ? profileUser.phone : '' %>"
+                                placeholder="So we/the courier can reach you" required>
+                            </div>
 
-              var methodSelect = document.getElementById('deliveryMethod');
-              var zoneSelect = document.getElementById('deliveryZone');
-              var deliverySection = document.getElementById('deliverySection');
-              var pickupSection = document.getElementById('pickupSection');
-              var streetInput = document.getElementById('addrStreet');
-              var cityInput = document.getElementById('addrCity');
-              var stateInput = document.getElementById('addrState');
+                            <% if (!isPreorder) { %>
+                              <div class="field">
+                                <label>Note (optional)</label>
+                                <textarea name="note" placeholder="Anything else we should know?"></textarea>
+                              </div>
+                              <% } %>
 
-              function currentFee() {
-                if (methodSelect.value === 'pickup') return 0;
-                var opt = zoneSelect.options[zoneSelect.selectedIndex];
-                return opt ? parseInt(opt.getAttribute('data-fee'), 10) || 0 : 0;
-              }
+                                <div class="field" style="border-top:1px solid var(--line);padding-top:16px;">
+                                  <div
+                                    style="display:flex;justify-content:space-between;font-size:13.5px;color:var(--ink-dim);margin-bottom:6px;">
+                                    <span>Item (<span id="qtyDisplay">1</span>×)</span>
+                                    <span id="itemTotalDisplay">
+                                      <%= formatPrice(product.price, product.currency) %>
+                                    </span>
+                                  </div>
+                                  <div
+                                    style="display:flex;justify-content:space-between;font-size:13.5px;color:var(--ink-dim);margin-bottom:10px;">
+                                    <span>Delivery fee</span>
+                                    <span id="shipFeeDisplay">
+                                      <%= formatPrice(zones[0].feeKobo, product.currency) %>
+                                    </span>
+                                  </div>
+                                  <div
+                                    style="display:flex;justify-content:space-between;font-family:'IBM Plex Mono',monospace;font-weight:600;font-size:16px;">
+                                    <span>Total</span>
+                                    <span id="totalDisplay">
+                                      <%= formatPrice(product.price + zones[0].feeKobo, product.currency) %>
+                                    </span>
+                                  </div>
+                                </div>
 
-              function recalc() {
-                var qty = parseInt(document.getElementById('qtyInput').value, 10) || 1;
-                document.getElementById('qtyDisplay').textContent = qty;
-                var itemTotal = unitPrice * qty;
-                var fee = currentFee();
-                document.getElementById('itemTotalDisplay').textContent = formatPrice(itemTotal);
-                document.getElementById('shipFeeDisplay').textContent = formatPrice(fee);
-                document.getElementById('totalDisplay').textContent = formatPrice(itemTotal + fee);
-              }
+                                <button type="submit"
+                                  class="btn <%= isPreorder ? 'btn-ochre' : 'btn-primary' %> btn-block">
+                                  <%= isPreorder ? 'Reserve with a pre-order' : 'Place order' %>
+                                </button>
+                                <p class="helper-note">
+                                  <%= isPreorder ? (paystackEnabled
+                                    ? "You'll pay now to secure your spot — production and ship dates will be confirmed by email."
+                                    : "This is a pre-order for an unreleased piece — production and ship dates will be confirmed by email."
+                                    ) : (paystackEnabled
+                                    ? "You'll be taken to a secure payment page to complete your order."
+                                    : "Payment isn't collected online yet — we'll reach out to confirm payment and delivery details."
+                                    ) %>
+                                </p>
+                          </form>
 
-              function toggleMethod() {
-                var isPickup = methodSelect.value === 'pickup';
-                deliverySection.style.display = isPickup ? 'none' : 'block';
-                pickupSection.style.display = isPickup ? 'block' : 'none';
-                // Only require street/city/state when actually shipping, not for pickup
-                [streetInput, cityInput, stateInput].forEach(function(el) {
-                  if (isPickup) { el.removeAttribute('required'); } else { el.setAttribute('required', 'required'); }
-                });
-                recalc();
-              }
+                          <script>
+                            (function () {
+                              var unitPrice = <%= product.price %>;
+                              var currency = <%= JSON.stringify(product.currency) %>;
+                              function formatPrice(kobo) {
+                                var amount = (kobo / 100).toLocaleString('en-NG', { minimumFractionDigits: 2 });
+                                var symbol = currency === 'NGN' ? '₦' : currency + ' ';
+                                return symbol + amount;
+                              }
 
-              methodSelect.addEventListener('change', toggleMethod);
-              zoneSelect.addEventListener('change', recalc);
-              document.getElementById('qtyInput').addEventListener('input', recalc);
-              toggleMethod();
+                              var methodSelect = document.getElementById('deliveryMethod');
+                              var zoneSelect = document.getElementById('deliveryZone');
+                              var deliverySection = document.getElementById('deliverySection');
+                              var pickupSection = document.getElementById('pickupSection');
+                              var streetInput = document.getElementById('addrStreet');
+                              var cityInput = document.getElementById('addrCity');
+                              var stateInput = document.getElementById('addrState');
 
-              var btn = document.getElementById('useLocationBtn');
-              var status = document.getElementById('locationStatus');
-              btn.addEventListener('click', function() {
-                if (!navigator.geolocation) {
-                  status.textContent = "Your browser doesn't support location detection — please type your address.";
-                  status.style.color = '#ff8a9a';
-                  return;
-                }
-                btn.disabled = true;
-                var originalText = btn.textContent;
-                btn.textContent = '📍 Detecting…';
-                status.textContent = 'Waiting for location permission — check for a browser prompt.';
-                status.style.color = '';
+                              function currentFee() {
+                                if (methodSelect.value === 'pickup') return 0;
+                                var opt = zoneSelect.options[zoneSelect.selectedIndex];
+                                return opt ? parseInt(opt.getAttribute('data-fee'), 10) || 0 : 0;
+                              }
 
-                function done() {
-                  btn.disabled = false;
-                  btn.textContent = originalText;
-                }
+                              function recalc() {
+                                var qty = parseInt(document.getElementById('qtyInput').value, 10);
+                                if (!Number.isFinite(qty) || qty < 1) qty = 1;
+                                document.getElementById('qtyInput').value = qty;
+                                document.getElementById('qtyDisplay').textContent = qty;
+                                var itemTotal = unitPrice * qty;
+                                var fee = currentFee();
+                                document.getElementById('itemTotalDisplay').textContent = formatPrice(itemTotal);
+                                document.getElementById('shipFeeDisplay').textContent = formatPrice(fee);
+                                document.getElementById('totalDisplay').textContent = formatPrice(itemTotal + fee);
+                              }
 
-                navigator.geolocation.getCurrentPosition(function(pos) {
-                  var lat = pos.coords.latitude, lon = pos.coords.longitude;
-                  status.textContent = 'Looking up your address…';
-                  fetch('https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=' + lat + '&lon=' + lon)
-                    .then(function(r) { return r.json(); })
-                    .then(function(data) {
-                      var a = data.address || {};
-                      var street = [a.house_number, a.road].filter(Boolean).join(' ') || a.neighbourhood || '';
-                      var city = a.city || a.town || a.village || a.county || '';
-                      var state = a.state || '';
-                      if (street) document.getElementById('addrStreet').value = street;
-                      if (city) document.getElementById('addrCity').value = city;
-                      if (state) document.getElementById('addrState').value = state;
-                      status.textContent = 'Location filled in — please double-check it looks right.';
-                      done();
-                    })
-                    .catch(function() {
-                      status.textContent = "Couldn't look up your address. Please type it in manually.";
-                      status.style.color = '#ff8a9a';
-                      done();
-                    });
-                }, function(err) {
-                  if (err && err.code === 1) {
-                    status.textContent = 'Location access denied — please type your address manually.';
-                  } else if (err && err.code === 3) {
-                    status.textContent = 'Location request timed out — please type your address manually.';
-                  } else {
-                    status.textContent = "Couldn't get your location — please type your address manually.";
-                  }
-                  status.style.color = '#ff8a9a';
-                  done();
-                }, { enableHighAccuracy: false, timeout: 10000, maximumAge: 60000 });
-              });
-            })();
-          </script>
-        <% } %>
+                              function toggleMethod() {
+                                var isPickup = methodSelect.value === 'pickup';
+                                deliverySection.style.display = isPickup ? 'none' : 'block';
+                                pickupSection.style.display = isPickup ? 'block' : 'none';
+                                // Only require street/city/state when actually shipping, not for pickup
+                                [streetInput, cityInput, stateInput].forEach(function (el) {
+                                  if (isPickup) { el.removeAttribute('required'); } else { el.setAttribute('required', 'required'); }
+                                });
+                                recalc();
+                              }
 
-      <% } else { %>
-        <!-- Unreleased, view-only: offer waitlist instead -->
-        <% if (!currentUser) { %>
-          <a href="/login?redirectTo=/product/<%= product.id %>" class="btn btn-secondary btn-block">Log in to join the waitlist</a>
-        <% } else if (!isVerified) { %>
-          <div class="error-msg" style="background:#f3e4c9;color:#8a5a13;border-left-color:#8a5a13;">Please verify your email to join the waitlist.</div>
-          <form method="POST" action="/resend-verification">
-            <button type="submit" class="btn btn-secondary btn-block">Resend verification email</button>
-          </form>
-        <% } else if (alreadyWaitlisted) { %>
-          <button class="btn btn-secondary btn-block" disabled>You're on the waitlist ✓</button>
-        <% } else { %>
-          <form method="POST" action="/waitlist/<%= product.id %>">
-            <button type="submit" class="btn btn-secondary btn-block">Notify me when it drops</button>
-          </form>
-        <% } %>
-        <p class="helper-note">This piece hasn't been released for ordering yet — you can only preview it for now.</p>
-      <% } %>
+                              methodSelect.addEventListener('change', toggleMethod);
+                              zoneSelect.addEventListener('change', recalc);
+                              document.getElementById('qtyInput').addEventListener('input', recalc);
+                              toggleMethod();
+
+                              var btn = document.getElementById('useLocationBtn');
+                              var status = document.getElementById('locationStatus');
+                              btn.addEventListener('click', function () {
+                                if (!navigator.geolocation) {
+                                  status.textContent = "Your browser doesn't support location detection — please type your address.";
+                                  status.style.color = '#ff8a9a';
+                                  return;
+                                }
+                                btn.disabled = true;
+                                var originalText = btn.textContent;
+                                btn.textContent = '📍 Detecting…';
+                                status.textContent = 'Waiting for location permission — check for a browser prompt.';
+                                status.style.color = '';
+
+                                function done() {
+                                  btn.disabled = false;
+                                  btn.textContent = originalText;
+                                }
+
+                                navigator.geolocation.getCurrentPosition(function (pos) {
+                                  var lat = pos.coords.latitude, lon = pos.coords.longitude;
+                                  status.textContent = 'Looking up your address…';
+                                  fetch('https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=' + lat + '&lon=' + lon)
+                                    .then(function (r) { return r.json(); })
+                                    .then(function (data) {
+                                      var a = data.address || {};
+                                      var street = [a.house_number, a.road].filter(Boolean).join(' ') || a.neighbourhood || '';
+                                      var city = a.city || a.town || a.village || a.county || '';
+                                      var state = a.state || '';
+                                      if (street) document.getElementById('addrStreet').value = street;
+                                      if (city) document.getElementById('addrCity').value = city;
+                                      if (state) document.getElementById('addrState').value = state;
+                                      status.textContent = 'Location filled in — please double-check it looks right.';
+                                      done();
+                                    })
+                                    .catch(function () {
+                                      status.textContent = "Couldn't look up your address. Please type it in manually.";
+                                      status.style.color = '#ff8a9a';
+                                      done();
+                                    });
+                                }, function (err) {
+                                  if (err && err.code === 1) {
+                                    status.textContent = 'Location access denied — please type your address manually.';
+                                  } else if (err && err.code === 3) {
+                                    status.textContent = 'Location request timed out — please type your address manually.';
+                                  } else {
+                                    status.textContent = "Couldn't get your location — please type your address manually.";
+                                  }
+                                  status.style.color = '#ff8a9a';
+                                  done();
+                                }, { enableHighAccuracy: false, timeout: 10000, maximumAge: 60000 });
+                              });
+                            })();
+                          </script>
+                          <% } %>
+
+                            <% } else { %>
+                              <!-- Unreleased, view-only: offer waitlist instead -->
+                              <% if (!currentUser) { %>
+                                <a href="/login?redirectTo=/product/<%= product.id %>"
+                                  class="btn btn-secondary btn-block">Log in to join the waitlist</a>
+                                <% } else if (!isVerified) { %>
+                                  <div class="error-msg"
+                                    style="background:#f3e4c9;color:#8a5a13;border-left-color:#8a5a13;">Please verify
+                                    your email to join the waitlist.</div>
+                                  <form method="POST" action="/resend-verification">
+                                    <button type="submit" class="btn btn-secondary btn-block">Resend verification
+                                      email</button>
+                                  </form>
+                                  <% } else if (alreadyWaitlisted) { %>
+                                    <button class="btn btn-secondary btn-block" disabled>You're on the waitlist
+                                      ✓</button>
+                                    <% } else { %>
+                                      <form method="POST" action="/waitlist/<%= product.id %>">
+                                        <button type="submit" class="btn btn-secondary btn-block">Notify me when it
+                                          drops</button>
+                                      </form>
+                                      <% } %>
+                                        <p class="helper-note">This piece hasn't been released for ordering yet — you
+                                          can only preview it for now.</p>
+                                        <% } %>
+        </div>
+      </div>
     </div>
-  </div>
-</div>
 
-<%- include('partials/footer') %>
+    <%- include('partials/footer') %>
