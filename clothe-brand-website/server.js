@@ -94,9 +94,15 @@ function deliveryZones() {
     zone('ZONE_LAGOS_MAINLAND_KOBO', 'Lagos Mainland', 500000),
     zone('ZONE_LAGOS_ISLAND_KOBO', 'Lagos Island', 700000),
     zone('ZONE_PORT_HARCOURT_KOBO', 'Port Harcourt', 700000),
-    zone('ZONE_ABUJA_KOBO', 'Abuja', 1000000),
-    zone('ZONE_OTHER_KOBO', 'Other location (fee confirmed after order)', 700000)
+    zone('ZONE_ABUJA_KOBO', 'Abuja', 1000000)
   ];
+}
+
+// Fallback fee used only if someone submits a zone key that isn't in the
+// list above (e.g. a stale page) -- not shown to customers as an option.
+function fallbackZoneFeeKobo() {
+  const parsed = parseInt(process.env.ZONE_OTHER_KOBO, 10);
+  return Number.isFinite(parsed) ? parsed : 700000;
 }
 
 function pickupLocation() {
@@ -420,7 +426,7 @@ app.post('/checkout', requireVerified, asyncRoute(async (req, res) => {
     shipFee = 0;
   } else {
     const zone = findDeliveryZone(delivery_zone);
-    shipFee = zone ? zone.feeKobo : findDeliveryZone('zone_other_kobo').feeKobo;
+    shipFee = zone ? zone.feeKobo : fallbackZoneFeeKobo();
     zoneLabel = zone ? zone.label : null;
   }
 
