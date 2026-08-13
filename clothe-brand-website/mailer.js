@@ -66,16 +66,20 @@ function verificationEmailHtml({ name, verifyUrl }) {
   `;
 }
 
-function orderRowsHtml(order, product) {
+function orderRowsHtml(order) {
   const isPickup = order.delivery_method === 'pickup';
   const deliveryLine = isPickup
     ? `<strong>Pickup at:</strong> ${order.shipping_address || ''}`
     : `<strong>Deliver to (${order.delivery_zone || 'delivery'}):</strong><br>${order.shipping_address || ''}, ${[order.shipping_city, order.shipping_state].filter(Boolean).join(', ')}`;
+
+  const itemRows = order.items.map(item => `
+      <tr><td style="padding:4px 0;color:#666;">${item.product_name} (${item.size || '—'} × ${item.quantity})</td><td style="padding:4px 0;text-align:right;">${formatKobo(item.line_total_kobo)}</td></tr>
+  `).join('');
+
   return `
     <table style="width:100%; border-collapse:collapse; margin:16px 0; font-size:14px;">
-      <tr><td style="padding:4px 0;color:#666;">Item</td><td style="padding:4px 0;text-align:right;">${product.name}</td></tr>
-      <tr><td style="padding:4px 0;color:#666;">Size / Qty</td><td style="padding:4px 0;text-align:right;">${order.size || '—'} / ${order.quantity}</td></tr>
-      <tr><td style="padding:4px 0;color:#666;">Item total</td><td style="padding:4px 0;text-align:right;">${formatKobo(order.item_total_kobo)}</td></tr>
+      ${itemRows}
+      <tr><td style="padding:4px 0;color:#666;border-top:1px solid #eee;">Items total</td><td style="padding:4px 0;text-align:right;border-top:1px solid #eee;">${formatKobo(order.item_total_kobo)}</td></tr>
       <tr><td style="padding:4px 0;color:#666;">Delivery fee</td><td style="padding:4px 0;text-align:right;">${isPickup ? 'Free (pickup)' : formatKobo(order.shipping_fee_kobo)}</td></tr>
       <tr><td style="padding:8px 0;font-weight:bold;border-top:1px solid #ddd;">Total</td><td style="padding:8px 0;text-align:right;font-weight:bold;border-top:1px solid #ddd;">${formatKobo(order.amount_kobo)}</td></tr>
     </table>
@@ -92,24 +96,24 @@ function formatKobo(kobo) {
 }
 
 // Sent to the store admin the moment a new order/pre-order comes in.
-function orderNotificationEmailHtml({ order, product, customer }) {
+function orderNotificationEmailHtml({ order, customer }) {
   return `
     <div style="font-family: sans-serif; max-width: 520px; margin: 0 auto;">
       <h2 style="color:${BRAND_COLOR};">🔔 New ${order.type === 'preorder' ? 'pre-order' : 'order'} received</h2>
       <p><strong>${customer.name}</strong> (${customer.email}) just placed an order.</p>
-      ${orderRowsHtml(order, product)}
+      ${orderRowsHtml(order)}
       <p style="font-size:13px;color:#999;">Order reference: ${order.id}</p>
     </div>
   `;
 }
 
 // Sent to the customer after their payment is confirmed.
-function orderReceiptEmailHtml({ order, product, customerName }) {
+function orderReceiptEmailHtml({ order, customerName }) {
   return `
     <div style="font-family: sans-serif; max-width: 520px; margin: 0 auto;">
       <h2 style="color:${BRAND_COLOR};">Thanks for your order, ${customerName}! ✅</h2>
       <p>Your payment was successful and your ${order.type === 'preorder' ? 'pre-order' : 'order'} is confirmed.</p>
-      ${orderRowsHtml(order, product)}
+      ${orderRowsHtml(order)}
       <p style="font-size:13px;color:#999;">Order reference: ${order.id}</p>
       <p style="font-size:13px;color:#666;">Questions about this order? Just reply to this email.</p>
     </div>

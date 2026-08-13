@@ -1,0 +1,56 @@
+<%- include('partials/header', { title: 'Your Cart' }) %>
+
+<div class="container">
+  <section class="section">
+    <div class="section-head">
+      <h2>Your cart</h2>
+    </div>
+
+    <% if (items.length === 0) { %>
+      <div class="empty-state">Your cart is empty. <a href="/" style="text-decoration:underline;">Browse the shop</a>.</div>
+    <% } else { %>
+      <table style="margin-bottom:28px;">
+        <thead>
+          <tr><th>Item</th><th>Size</th><th>Qty</th><th>Price</th><th>Subtotal</th><th></th></tr>
+        </thead>
+        <tbody>
+          <% items.forEach((item, i) => { %>
+            <tr>
+              <td style="display:flex;align-items:center;gap:12px;">
+                <img src="<%= item.product_image %>" alt="" style="width:48px;height:60px;object-fit:cover;border-radius:4px;">
+                <div>
+                  <%= item.product_name %>
+                  <% if (item.product_status === 'unreleased') { %><br><span style="font-size:11px;color:var(--gold);text-transform:uppercase;">Pre-order</span><% } %>
+                </div>
+              </td>
+              <td><%= item.size || '—' %></td>
+              <td>
+                <form method="POST" action="/cart/update/<%= i %>" style="display:flex;gap:6px;align-items:center;">
+                  <input type="number" name="quantity" value="<%= item.quantity %>" min="1" style="width:64px;padding:8px 10px;" onchange="this.form.submit()">
+                </form>
+              </td>
+              <td><%= formatPrice(item.unit_price_kobo, item.currency) %></td>
+              <td><%= formatPrice(item.line_total_kobo, item.currency) %></td>
+              <td>
+                <form method="POST" action="/cart/remove/<%= i %>">
+                  <button type="submit" class="btn btn-danger btn-small">Remove</button>
+                </form>
+              </td>
+            </tr>
+          <% }) %>
+        </tbody>
+      </table>
+
+      <div style="max-width:360px;margin-left:auto;">
+        <div style="display:flex;justify-content:space-between;font-family:'IBM Plex Mono',monospace;font-weight:600;font-size:18px;margin-bottom:20px;">
+          <span>Items total</span>
+          <span><%= formatPrice(itemTotalKobo, items[0].currency) %></span>
+        </div>
+        <a href="/checkout" class="btn btn-primary btn-block">Proceed to checkout</a>
+        <p class="helper-note" style="text-align:center;">Delivery fee is added at checkout, based on where you want it delivered.</p>
+      </div>
+    <% } %>
+  </section>
+</div>
+
+<%- include('partials/footer') %>

@@ -67,6 +67,7 @@ app.use(async (req, res, next) => {
     }
   }
   res.locals.currentUser = req.session.user || null;
+  res.locals.cartCount = (req.session.cart || []).reduce((sum, i) => sum + i.quantity, 0);
   res.locals.formatPrice = (kobo, currency = 'NGN') => {
     const amount = (kobo / 100).toLocaleString('en-NG', { minimumFractionDigits: 2 });
     const symbol = currency === 'NGN' ? '₦' : currency + ' ';
@@ -93,7 +94,8 @@ function deliveryZones() {
     zone('ZONE_LAGOS_MAINLAND_KOBO', 'Lagos Mainland', 500000),
     zone('ZONE_LAGOS_ISLAND_KOBO', 'Lagos Island', 700000),
     zone('ZONE_PORT_HARCOURT_KOBO', 'Port Harcourt', 700000),
-    zone('ZONE_ABUJA_KOBO', 'Abuja', 700000)
+    zone('ZONE_ABUJA_KOBO', 'Abuja', 1000000),
+    zone('ZONE_OTHER_KOBO', 'Other location (fee confirmed after order)', 700000)
   ];
 }
 
@@ -105,15 +107,17 @@ function findDeliveryZone(key) {
   return deliveryZones().find(z => z.key === key) || null;
 }
 
-async function notifyAdminOfOrder(order, product, customer) {
+async function notifyAdminOfOrder(order, customer) {
   const adminEmail = process.env.ADMIN_NOTIFICATION_EMAIL || process.env.BREVO_SENDER_EMAIL;
   if (!adminEmail) return; // no address configured to notify -- skip quietly
+  const itemCount = order.items.length;
+  const summary = itemCount === 1 ? order.items[0].product_name : `${itemCount} items`;
   try {
     await sendEmail({
       to: adminEmail,
       toName: 'Admin',
-      subject: `New ${order.type === 'preorder' ? 'pre-order' : 'order'}: ${product.name}`,
-      html: orderNotificationEmailHtml({ order, product, customer })
+      subject: `New ${order.type === 'preorder' ? 'pre-order' : 'order'}: ${summary}`,
+      html: orderNotificationEmailHtml({ order, customer })
     });
   } catch (e) {
     console.error('Failed to send admin order notification:', e.message);
@@ -327,31 +331,108 @@ app.post('/profile', requireLogin, asyncRoute(async (req, res) => {
 // ORDERING — account + verified email required from here
 // =====================================================
 
-app.post('/order/:productId', requireVerified, asyncRoute(async (req, res) => {
+// =====================================================
+// CART — add multiple different items, adjust quantities,
+// then check out once for everything together.
+// =====================================================
+
+function getCart(req) {
+  if (!req.session.cart) req.session.cart = [];
+  return req.session.cart;
+}
+
+async function cartWithDetails(req) {
+  const cart = getCart(req);
+  const items = [];
+  for (const entry of cart) {
+    const product = await db.products.find(entry.product_id);
+    if (!product) continue; // product deleted since being added -- skip silently
+    items.push({
+      product_id: product.id,
+      product_name: product.name,
+      product_image: product.image_url,
+      product_status: product.status,
+      currency: product.currency,
+      size: entry.size,
+      quantity: entry.quantity,
+      unit_price_kobo: product.price,
+      line_total_kobo: product.price * entry.quantity
+    });
+  }
+  const itemTotalKobo = items.reduce((sum, i) => sum + i.line_total_kobo, 0);
+  return { items, itemTotalKobo };
+}
+
+app.post('/cart/add/:productId', requireLogin, asyncRoute(async (req, res) => {
   const product = await db.products.find(req.params.productId);
   if (!product) return res.status(404).render('404');
-  const { size, quantity, delivery_method, delivery_zone, shipping_address, shipping_city, shipping_state, shipping_phone, note } = req.body;
-  const qty = Math.max(1, Number.parseInt(quantity, 10) || 1);
+  const isOrderable = product.status === 'available' || (product.status === 'unreleased' && product.allow_preorder);
+  if (!isOrderable) return res.redirect('/product/' + product.id);
 
-  const type = product.status === 'unreleased' ? 'preorder' : 'order';
-  const itemTotal = product.price * qty;
+  const { size, quantity } = req.body;
+  const qty = Math.max(1, Number(quantity) || 1);
+  const cart = getCart(req);
+  const existing = cart.find(c => c.product_id === product.id && c.size === size);
+  if (existing) {
+    existing.quantity += qty;
+  } else {
+    cart.push({ product_id: product.id, size, quantity: qty });
+  }
+  res.redirect('/cart');
+}));
 
+app.post('/cart/update/:index', requireLogin, (req, res) => {
+  const cart = getCart(req);
+  const idx = Number(req.params.index);
+  const qty = Math.max(1, Number(req.body.quantity) || 1);
+  if (cart[idx]) cart[idx].quantity = qty;
+  res.redirect('/cart');
+});
+
+app.post('/cart/remove/:index', requireLogin, (req, res) => {
+  const cart = getCart(req);
+  const idx = Number(req.params.index);
+  if (cart[idx]) cart.splice(idx, 1);
+  res.redirect('/cart');
+});
+
+app.get('/cart', requireLogin, asyncRoute(async (req, res) => {
+  const { items, itemTotalKobo } = await cartWithDetails(req);
+  res.render('cart', { items, itemTotalKobo });
+}));
+
+app.get('/checkout', requireVerified, asyncRoute(async (req, res) => {
+  const { items, itemTotalKobo } = await cartWithDetails(req);
+  if (items.length === 0) return res.redirect('/cart');
+  const profileUser = await db.users.findById(req.session.user.id);
+  res.render('checkout', { items, itemTotalKobo, profileUser, zones: deliveryZones(), pickupLocation: pickupLocation(), paystackEnabled: paystack.isConfigured() });
+}));
+
+app.post('/checkout', requireVerified, asyncRoute(async (req, res) => {
+  const { items, itemTotalKobo } = await cartWithDetails(req);
+  if (items.length === 0) return res.redirect('/cart');
+
+  const { delivery_method, delivery_zone, shipping_address, shipping_city, shipping_state, shipping_phone, note } = req.body;
   const isPickup = delivery_method === 'pickup';
   let shipFee = 0;
   let zoneLabel = null;
   if (isPickup) {
     shipFee = 0;
   } else {
-    const zone = findDeliveryZone(delivery_zone) || deliveryZones()[0];
-    shipFee = zone ? zone.feeKobo : 0;
+    const zone = findDeliveryZone(delivery_zone);
+    shipFee = zone ? zone.feeKobo : findDeliveryZone('zone_other_kobo').feeKobo;
     zoneLabel = zone ? zone.label : null;
   }
 
+  // If every item in the cart is an unreleased pre-order item, tag the whole
+  // order as a pre-order; if it's a mix, "mixed" is still accurate and shown
+  // clearly to both the customer and admin.
+  const types = [...new Set(items.map(i => i.product_status === 'unreleased' ? 'preorder' : 'order'))];
+  const type = types.length === 1 ? types[0] : 'mixed';
+
   const order = await db.orders.create({
     user_id: req.session.user.id,
-    product_id: product.id,
-    size,
-    quantity: qty,
+    items,
     type,
     delivery_method: isPickup ? 'pickup' : 'delivery',
     delivery_zone: zoneLabel,
@@ -360,17 +441,19 @@ app.post('/order/:productId', requireVerified, asyncRoute(async (req, res) => {
     shipping_state: isPickup ? '' : shipping_state,
     shipping_phone,
     note: note || '',
-    item_total_kobo: itemTotal,
+    item_total_kobo: itemTotalKobo,
     shipping_fee_kobo: shipFee,
-    amount_kobo: itemTotal + shipFee
+    amount_kobo: itemTotalKobo + shipFee
   });
+
+  req.session.cart = []; // clear the cart now that it's become an order
 
   // If Paystack isn't set up yet, fall back to the old manual-payment flow
   // (order gets recorded, admin follows up to collect payment directly) so
   // the site keeps working while you're waiting on a Paystack account.
   if (!paystack.isConfigured()) {
-    await notifyAdminOfOrder(order, product, req.session.user);
-    return res.render('order-confirmation', { product, paid: false, paystackEnabled: false });
+    await notifyAdminOfOrder(order, req.session.user);
+    return res.render('order-confirmation', { order, paid: false, paystackEnabled: false });
   }
 
   try {
@@ -379,12 +462,12 @@ app.post('/order/:productId', requireVerified, asyncRoute(async (req, res) => {
       amountInKobo: order.amount_kobo,
       reference: order.id,
       callbackUrl: `${baseUrl(req)}/payment/callback`,
-      metadata: { order_id: order.id, product_name: product.name }
+      metadata: { order_id: order.id, item_count: items.length }
     });
     res.redirect(authUrl);
   } catch (e) {
     console.error('Failed to start Paystack payment:', e.message);
-    res.render('order-confirmation', { product, paid: false, paystackEnabled: true, startError: true });
+    res.render('order-confirmation', { order, paid: false, paystackEnabled: true, startError: true });
   }
 }));
 
@@ -396,35 +479,34 @@ app.get('/payment/callback', asyncRoute(async (req, res) => {
   const { reference } = req.query;
   const order = reference ? await db.orders.find(reference) : null;
   if (!order) {
-    return res.render('payment-result', { success: false, product: null });
+    return res.render('payment-result', { success: false, order: null });
   }
-  const product = await db.products.find(order.product_id);
 
   try {
     const verification = await paystack.verifyPayment(reference);
     if (verification.success && verification.amountInKobo === order.amount_kobo) {
       await db.orders.update(order.id, { status: 'confirmed' });
       const customer = await db.users.findById(order.user_id);
-      await notifyAdminOfOrder(order, product, customer);
+      await notifyAdminOfOrder(order, customer);
       if (customer) {
         try {
           await sendEmail({
             to: customer.email,
             toName: customer.name,
-            subject: `Order confirmed: ${product.name}`,
-            html: orderReceiptEmailHtml({ order, product, customerName: customer.name })
+            subject: `Order confirmed — ${order.items.length} item${order.items.length > 1 ? 's' : ''}`,
+            html: orderReceiptEmailHtml({ order, customerName: customer.name })
           });
         } catch (e) {
           console.error('Failed to send customer receipt:', e.message);
         }
       }
-      return res.render('order-confirmation', { product, paid: true, paystackEnabled: true });
+      return res.render('order-confirmation', { order, paid: true, paystackEnabled: true });
     }
     await db.orders.update(order.id, { status: 'cancelled' });
-    return res.render('payment-result', { success: false, product });
+    return res.render('payment-result', { success: false, order });
   } catch (e) {
     console.error('Payment verification failed:', e.message);
-    return res.render('payment-result', { success: false, product });
+    return res.render('payment-result', { success: false, order });
   }
 }));
 
@@ -459,14 +541,7 @@ app.post('/waitlist/:productId', requireVerified, asyncRoute(async (req, res) =>
 }));
 
 app.get('/my-orders', requireLogin, asyncRoute(async (req, res) => {
-  const rawOrders = await db.orders.forUser(req.session.user.id);
-  const orders = rawOrders.map(o => ({
-    ...o,
-    product_name: o.product ? o.product.name : '(deleted product)',
-    image_url: o.product ? o.product.image_url : '',
-    price: o.product ? o.product.price : 0,
-    currency: o.product ? o.product.currency : 'NGN'
-  }));
+  const orders = await db.orders.forUser(req.session.user.id);
   res.render('my-orders', { orders });
 }));
 
@@ -539,7 +614,6 @@ app.get('/admin/orders', requireAdmin, asyncRoute(async (req, res) => {
   const raw = await db.orders.allWithDetails();
   const orders = raw.map(o => ({
     ...o,
-    product_name: o.product ? o.product.name : '(deleted product)',
     customer_name: o.customer ? o.customer.name : '(deleted user)',
     customer_email: o.customer ? o.customer.email : '',
     customer_phone: o.customer ? o.customer.phone : ''

@@ -10,15 +10,18 @@
     <% } else { %>
       <table>
         <thead>
-          <tr><th>Item</th><th>Type</th><th>Size</th><th>Qty</th><th>Status</th><th>Placed</th><th></th></tr>
+          <tr><th>Items</th><th>Type</th><th>Total</th><th>Status</th><th>Placed</th><th></th></tr>
         </thead>
         <tbody>
           <% orders.forEach(o => { %>
             <tr>
-              <td><%= o.product_name %></td>
-              <td><%= o.type === 'preorder' ? 'Pre-order' : 'Order' %></td>
-              <td><%= o.size || '—' %></td>
-              <td><%= o.quantity %></td>
+              <td>
+                <% o.items.forEach(item => { %>
+                  <div><%= item.product_name %> <span style="color:var(--ink-dim);">(<%= item.size || '—' %> × <%= item.quantity %>)</span></div>
+                <% }) %>
+              </td>
+              <td><%= o.type === 'preorder' ? 'Pre-order' : (o.type === 'mixed' ? 'Mixed' : 'Order') %></td>
+              <td><%= formatPrice(o.amount_kobo, o.items[0].currency) %></td>
               <td><span class="status-tag status-<%= o.status %>"><%= o.status.replace('_',' ') %></span></td>
               <td><%= new Date(o.created_at).toLocaleDateString() %></td>
               <td>

@@ -3,8 +3,8 @@
 <div class="container">
   <div class="form-card" style="text-align:center;">
     <h2>Payment didn't go through</h2>
-    <% if (product) { %>
-      <p>Your order for <strong><%= product.name %></strong> has been cancelled since payment wasn't completed.</p>
+    <% if (order) { %>
+      <p>Your order for <strong><%= order.items.length === 1 ? order.items[0].product_name : order.items.length + ' items' %></strong> has been cancelled since payment wasn't completed.</p>
     <% } else { %>
       <p>We couldn't confirm this payment, so the order was cancelled.</p>
     <% } %>

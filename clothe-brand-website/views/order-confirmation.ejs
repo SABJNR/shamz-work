@@ -1,18 +1,24 @@
 <%- include('partials/header', { title: paid ? 'Payment successful' : 'Order received' }) %>
 
+<%
+  const itemSummary = order.items.length === 1
+    ? order.items[0].product_name
+    : `${order.items.length} items`;
+%>
+
 <div class="container">
   <div class="form-card" style="text-align:center;">
     <% if (paid) { %>
       <h2>Payment successful! 🎉</h2>
-      <p>Your order for <strong><%= product.name %></strong> is confirmed and paid.</p>
+      <p>Your order for <strong><%= itemSummary %></strong> is confirmed and paid.</p>
       <p class="helper-note">We'll get it ready and reach out about delivery. You can track this order anytime under "My Orders".</p>
     <% } else if (paystackEnabled && startError) { %>
       <h2>Order saved, but payment didn't start</h2>
-      <p>We saved your order for <strong><%= product.name %></strong>, but couldn't open the payment page just now.</p>
+      <p>We saved your order for <strong><%= itemSummary %></strong>, but couldn't open the payment page just now.</p>
       <p class="helper-note">You can retry payment anytime from "My Orders".</p>
     <% } else { %>
       <h2>Thank you! 🎉</h2>
-      <p>Your order for <strong><%= product.name %></strong> has been received.</p>
+      <p>Your order for <strong><%= itemSummary %></strong> has been received.</p>
       <p class="helper-note">We'll contact you shortly to confirm payment and delivery details. You can track this order anytime under "My Orders".</p>
     <% } %>
     <a href="/my-orders" class="btn btn-primary" style="margin-top:16px;">View my orders</a>
