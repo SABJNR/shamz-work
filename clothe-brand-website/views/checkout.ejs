@@ -97,7 +97,7 @@
     <script>
       (function() {
         var itemTotalKobo = <%= itemTotalKobo %>;
-        var currency = <%= JSON.stringify(items[0].currency) %>;
+        var currency = <%- JSON.stringify(items[0].currency) %>;
         function formatPrice(kobo) {
           var amount = (kobo / 100).toLocaleString('en-NG', { minimumFractionDigits: 2 });
           var symbol = currency === 'NGN' ? '₦' : currency + ' ';
