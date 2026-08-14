@@ -383,11 +383,53 @@ tr:hover td { background: #FBFBFC; }
 
 /* ---------- Responsive ---------- */
 @media (max-width: 760px) {
-  .product-detail { grid-template-columns: 1fr; gap: 32px; }
-  .nav-links { gap: 16px; font-size: 13px; }
+  .container { padding: 0 18px; }
+
+  /* Header: let nav wrap onto a second line instead of squeezing/overflowing */
+  .site-header .container { flex-direction: column; align-items: flex-start; gap: 12px; padding-top: 16px; padding-bottom: 16px; }
+  .nav-links { flex-wrap: wrap; gap: 10px 16px; font-size: 12.5px; width: 100%; }
+  .nav-links span { display: none; } /* "Hi, Name" — drop on small screens, not essential */
+  .nav-links .pill { padding: 8px 14px; }
+
+  .hero { padding: 56px 0 60px; }
+  .hero h1 { font-size: clamp(30px, 8vw, 42px); }
+  .hero p { font-size: 15.5px; }
+
+  .section { padding: 44px 0; }
+  .section-head { margin-bottom: 24px; padding-bottom: 14px; }
+  .section-head h2 { font-size: 22px; }
+
+  .grid { gap: 18px; }
+
+  /* Product detail: drop the sticky/capped image so it behaves like a normal
+     stacked page instead of fighting the long form below it */
+  .product-detail { grid-template-columns: 1fr; gap: 28px; padding: 32px 0; }
+  .product-detail .thumb { position: static; max-height: none; }
+  .product-detail > div:last-child { padding: 0; }
+  .product-detail h1 { font-size: 26px; }
+  .product-detail .price { font-size: 20px; margin: 10px 0 20px; }
+
+  .form-card { margin: 32px auto; padding: 32px 22px; border-radius: 8px; }
+
+  .field input, .field select, .field textarea { padding: 12px 13px; font-size: 16px; } /* 16px avoids iOS auto-zoom on focus */
+
+  .btn { padding: 14px 22px; font-size: 14px; }
+
+  /* Tables: rather than squeezing every column illegibly, let the row of
+     columns scroll sideways so nothing gets cut off or overlaps. */
+  .section, .admin-main { overflow-x: auto; }
+  table { min-width: 640px; }
+
   .admin-shell { flex-direction: column; }
   .admin-sidebar { width: 100%; display: flex; padding: 10px; overflow-x: auto; border-right: none; border-bottom: 1px solid var(--line); }
   .admin-sidebar a { padding: 10px 16px; white-space: nowrap; border-left: none; border-bottom: 3px solid transparent; }
   .admin-sidebar a:hover, .admin-sidebar a.active { border-left: none; border-bottom-color: var(--red); }
-  .stat-row { flex-direction: column; }
+  .admin-main { padding: 24px 18px; }
+  .stat-row { flex-direction: column; gap: 12px; }
+  .stat-box { padding: 18px 20px; }
+}
+
+@media (max-width: 420px) {
+  .hero h1 { font-size: 28px; }
+  .nav-links { font-size: 12px; gap: 8px 12px; }
 }

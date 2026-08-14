@@ -195,6 +195,27 @@ const products = {
 };
 
 // ================= Orders =================
+// Orders placed before the cart feature existed used a single product_id +
+// size + quantity, instead of an items array. This makes sure old orders
+// still display correctly instead of crashing pages that expect `items`.
+async function normalizeOrderItems(order) {
+  if (!order.items) {
+    const product = order.product_id ? await products.find(order.product_id) : null;
+    order.items = [{
+      product_id: order.product_id || null,
+      product_name: product ? product.name : '(deleted product)',
+      product_image: product ? product.image_url : '',
+      product_status: product ? product.status : 'available',
+      currency: (product && product.currency) || 'NGN',
+      size: order.size,
+      quantity: order.quantity || 1,
+      unit_price_kobo: order.item_total_kobo || (product ? product.price : 0),
+      line_total_kobo: order.item_total_kobo || 0
+    }];
+  }
+  return order;
+}
+
 const orders = {
   async create(fields) {
     const doc = { ...fields, status: 'pending_payment', created_at: new Date().toISOString() };
@@ -209,13 +230,17 @@ const orders = {
   },
   async forUser(userId) {
     const docs = await dbConn.collection('orders').find({ user_id: userId }).sort({ created_at: -1 }).toArray();
-    return docs.map(withStringId);
+    const result = [];
+    for (const o of docs) {
+      result.push(await normalizeOrderItems(withStringId(o)));
+    }
+    return result;
   },
   async allWithDetails() {
     const docs = await dbConn.collection('orders').find().sort({ created_at: -1 }).toArray();
     const result = [];
     for (const o of docs) {
-      const order = withStringId(o);
+      const order = await normalizeOrderItems(withStringId(o));
       order.customer = await users.findById(order.user_id);
       result.push(order);
     }
