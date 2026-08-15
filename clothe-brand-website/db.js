@@ -191,6 +191,14 @@ const products = {
     const oid = toObjectId(id);
     if (!oid) return;
     await dbConn.collection('products').deleteOne({ _id: oid });
+  },
+  // Only decrements if stock is a tracked number (not null/undefined, meaning
+  // "unlimited") and never goes below 0.
+  async decrementStock(id, qty) {
+    const product = await products.find(id);
+    if (!product || product.stock === null || product.stock === undefined) return;
+    const newStock = Math.max(0, product.stock - qty);
+    await products.update(id, { stock: newStock });
   }
 };
 
@@ -289,4 +297,55 @@ const waitlist = {
   }
 };
 
-module.exports = { connect, users, products, orders, waitlist };
+// ================= Promo Codes =================
+const promoCodes = {
+  async findByCode(code) {
+    if (!code) return null;
+    const doc = await dbConn.collection('promocodes').findOne({ code: code.trim().toUpperCase() });
+    return withStringId(doc);
+  },
+  async all() {
+    const docs = await dbConn.collection('promocodes').find().sort({ created_at: -1 }).toArray();
+    return docs.map(withStringId);
+  },
+  async create({ code, type, value, max_uses, expires_at }) {
+    const doc = {
+      code: code.trim().toUpperCase(),
+      type, // 'percent' | 'flat'
+      value: Number(value),
+      max_uses: max_uses ? Number(max_uses) : null,
+      used_count: 0,
+      expires_at: expires_at || null,
+      active: true,
+      created_at: new Date().toISOString()
+    };
+    const result = await dbConn.collection('promocodes').insertOne(doc);
+    return withStringId({ _id: result.insertedId, ...doc });
+  },
+  async incrementUsage(id) {
+    const oid = toObjectId(id);
+    if (!oid) return;
+    await dbConn.collection('promocodes').updateOne({ _id: oid }, { $inc: { used_count: 1 } });
+  },
+  async setActive(id, active) {
+    const oid = toObjectId(id);
+    if (!oid) return;
+    await dbConn.collection('promocodes').updateOne({ _id: oid }, { $set: { active } });
+  }
+};
+
+// Validates a code and returns { valid, reason, discountKobo } given an item
+// subtotal. Doesn't mutate anything -- call promoCodes.incrementUsage
+// separately once the order is actually placed.
+function computeDiscount(promo, itemTotalKobo) {
+  if (!promo) return { valid: false, reason: 'Invalid code.' };
+  if (!promo.active) return { valid: false, reason: 'This code is no longer active.' };
+  if (promo.expires_at && new Date(promo.expires_at) < new Date()) return { valid: false, reason: 'This code has expired.' };
+  if (promo.max_uses && promo.used_count >= promo.max_uses) return { valid: false, reason: 'This code has reached its usage limit.' };
+  const discountKobo = promo.type === 'percent'
+    ? Math.round(itemTotalKobo * (promo.value / 100))
+    : Math.min(promo.value, itemTotalKobo);
+  return { valid: true, discountKobo };
+}
+
+module.exports = { connect, users, products, orders, waitlist, promoCodes, computeDiscount };

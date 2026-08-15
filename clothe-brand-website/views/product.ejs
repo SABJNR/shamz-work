@@ -2,22 +2,29 @@
 
 <%
   const isVerified = currentUser && !currentUser.is_admin && currentUser.email_verified === 1;
+  const isSoldOut = product.stock !== null && product.stock !== undefined && product.stock <= 0;
 %>
 
 <div class="container">
   <div class="product-detail">
     <div class="thumb" style="background-image:url('<%= product.image_url %>')"></div>
     <div>
-      <% if (product.status === 'unreleased') { %>
+      <% if (isSoldOut) { %>
+        <div class="status-line" style="color:var(--ink-dim);">Sold out</div>
+      <% } else if (product.status === 'unreleased') { %>
         <div class="status-line"><%= product.allow_preorder ? 'Pre-order · Unreleased' : 'Preview only · Coming soon' %></div>
       <% } else { %>
-        <div class="status-line">In stock</div>
+        <div class="status-line">In stock<%= (product.stock !== null && product.stock !== undefined) ? ' · ' + product.stock + ' left' : '' %></div>
       <% } %>
       <h1><%= product.name %></h1>
       <div class="price"><%= formatPrice(product.price, product.currency) %></div>
       <p class="desc"><%= product.description %></p>
 
-      <% if (product.status === 'available' || (product.status === 'unreleased' && product.allow_preorder)) { %>
+      <% if (isSoldOut) { %>
+        <button class="btn btn-secondary btn-block" disabled>Sold out</button>
+        <p class="helper-note">Check back later, or browse <a href="/" style="text-decoration:underline;">what's currently available</a>.</p>
+
+      <% } else if (product.status === 'available' || (product.status === 'unreleased' && product.allow_preorder)) { %>
         <% const isPreorder = product.status === 'unreleased'; %>
 
         <% if (!currentUser) { %>
@@ -34,17 +41,18 @@
 
         <% } else { %>
           <form method="POST" action="/cart/add/<%= product.id %>">
-            <div class="field">
-              <label>Size</label>
-              <select name="size">
-                <% product.sizes.split(',').forEach(s => { %>
-                  <option value="<%= s.trim() %>"><%= s.trim() %></option>
-                <% }) %>
-              </select>
+            <div class="field" style="display:flex;justify-content:space-between;align-items:baseline;">
+              <label style="margin:0;">Size</label>
+              <a href="/size-guide" target="_blank" class="helper-note" style="text-decoration:underline;">📏 Size guide</a>
             </div>
-            <div class="field">
+            <select name="size">
+              <% product.sizes.split(',').forEach(s => { %>
+                <option value="<%= s.trim() %>"><%= s.trim() %></option>
+              <% }) %>
+            </select>
+            <div class="field" style="margin-top:16px;">
               <label>Quantity</label>
-              <input type="number" name="quantity" value="1" min="1">
+              <input type="number" name="quantity" value="1" min="1" <%= (product.stock !== null && product.stock !== undefined) ? 'max="' + product.stock + '"' : '' %>>
             </div>
             <button type="submit" class="btn <%= isPreorder ? 'btn-ochre' : 'btn-primary' %> btn-block"><%= isPreorder ? 'Add pre-order to cart' : 'Add to cart' %></button>
             <p class="helper-note"><%= isPreorder ? "This is a pre-order for an unreleased piece — production and ship dates will be confirmed by email." : "You'll choose delivery and pay when you check out." %></p>

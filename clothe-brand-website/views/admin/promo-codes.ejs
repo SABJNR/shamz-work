@@ -1,0 +1,63 @@
+<%- include('../partials/header', { title: 'Promo Codes' }) %>
+
+<div class="admin-shell">
+  <%- include('./partials/sidebar', { active: 'promos' }) %>
+  <div class="admin-main">
+    <div class="section-head"><h2>Promo codes</h2></div>
+
+    <table style="margin-bottom:36px;">
+      <thead><tr><th>Code</th><th>Discount</th><th>Used</th><th>Expires</th><th>Status</th><th></th></tr></thead>
+      <tbody>
+        <% codes.forEach(c => { %>
+          <tr>
+            <td><strong><%= c.code %></strong></td>
+            <td><%= c.type === 'percent' ? c.value + '%' : formatPrice(c.value) %></td>
+            <td><%= c.used_count %><%= c.max_uses ? ' / ' + c.max_uses : '' %></td>
+            <td><%= c.expires_at ? new Date(c.expires_at).toLocaleDateString() : 'Never' %></td>
+            <td><span class="status-tag <%= c.active ? 'status-confirmed' : 'status-cancelled' %>"><%= c.active ? 'Active' : 'Disabled' %></span></td>
+            <td>
+              <form method="POST" action="/admin/promo-codes/<%= c.id %>/toggle?_method=PUT">
+                <input type="hidden" name="active" value="<%= c.active ? '0' : '1' %>">
+                <button type="submit" class="btn btn-small <%= c.active ? 'btn-danger' : 'btn-secondary' %>"><%= c.active ? 'Disable' : 'Enable' %></button>
+              </form>
+            </td>
+          </tr>
+        <% }) %>
+      </tbody>
+    </table>
+
+    <div class="form-card" style="margin:0;max-width:440px;">
+      <h2 style="font-size:20px;">Create a promo code</h2>
+      <% if (error) { %><div class="error-msg"><%= error %></div><% } %>
+      <% if (success) { %><div class="error-msg" style="background:#E7F5EC;color:#1E7A3D;border-left-color:#1E7A3D;">Promo code created ✓</div><% } %>
+      <form method="POST" action="/admin/promo-codes">
+        <div class="field">
+          <label>Code (e.g. LAUNCH10)</label>
+          <input type="text" name="code" required style="text-transform:uppercase;">
+        </div>
+        <div class="field">
+          <label>Discount type</label>
+          <select name="type">
+            <option value="percent">Percentage off</option>
+            <option value="flat">Flat amount off (₦)</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>Value (e.g. 10 for 10% off, or 2000 for ₦2,000 off)</label>
+          <input type="number" name="value" required min="1">
+        </div>
+        <div class="field">
+          <label>Max uses (optional, leave blank for unlimited)</label>
+          <input type="number" name="max_uses" min="1">
+        </div>
+        <div class="field">
+          <label>Expires on (optional)</label>
+          <input type="date" name="expires_at">
+        </div>
+        <button type="submit" class="btn btn-primary btn-block">Create code</button>
+      </form>
+    </div>
+  </div>
+</div>
+
+<%- include('../partials/footer') %>

@@ -75,10 +75,23 @@
         <textarea name="note" placeholder="Anything else we should know?"></textarea>
       </div>
 
+      <div class="field">
+        <label>Promo code (optional)</label>
+        <div style="display:flex;gap:8px;">
+          <input type="text" name="promo_code" id="promoInput" style="text-transform:uppercase;flex:1;" placeholder="e.g. LAUNCH10">
+          <button type="button" id="applyPromoBtn" class="btn btn-secondary btn-small" style="white-space:nowrap;">Apply</button>
+        </div>
+        <p id="promoStatus" class="helper-note" style="margin-top:8px;"></p>
+      </div>
+
       <div class="field" style="border-top:1px solid var(--line);padding-top:16px;">
         <div style="display:flex;justify-content:space-between;font-size:14px;color:var(--ink-dim);margin-bottom:6px;">
           <span>Items total</span>
-          <span><%= formatPrice(itemTotalKobo, items[0].currency) %></span>
+          <span id="itemTotalDisplay"><%= formatPrice(itemTotalKobo, items[0].currency) %></span>
+        </div>
+        <div id="discountRow" style="display:none;justify-content:space-between;font-size:14px;color:#1E7A3D;margin-bottom:6px;">
+          <span>Discount</span>
+          <span id="discountDisplay"></span>
         </div>
         <div style="display:flex;justify-content:space-between;font-size:14px;color:var(--ink-dim);margin-bottom:10px;">
           <span>Delivery fee</span>
@@ -118,11 +131,54 @@
           return opt ? parseInt(opt.getAttribute('data-fee'), 10) || 0 : 0;
         }
 
+        var appliedDiscountKobo = 0;
+
         function recalc() {
           var fee = currentFee();
           document.getElementById('shipFeeDisplay').textContent = formatPrice(fee);
-          document.getElementById('totalDisplay').textContent = formatPrice(itemTotalKobo + fee);
+          document.getElementById('itemTotalDisplay').textContent = formatPrice(itemTotalKobo);
+          var total = Math.max(0, itemTotalKobo - appliedDiscountKobo) + fee;
+          document.getElementById('totalDisplay').textContent = formatPrice(total);
+          var discountRow = document.getElementById('discountRow');
+          if (appliedDiscountKobo > 0) {
+            discountRow.style.display = 'flex';
+            document.getElementById('discountDisplay').textContent = '-' + formatPrice(appliedDiscountKobo);
+          } else {
+            discountRow.style.display = 'none';
+          }
         }
+
+        var promoBtn = document.getElementById('applyPromoBtn');
+        var promoInput = document.getElementById('promoInput');
+        var promoStatus = document.getElementById('promoStatus');
+        promoBtn.addEventListener('click', function() {
+          var code = promoInput.value.trim();
+          if (!code) return;
+          promoStatus.textContent = 'Checking…';
+          promoStatus.style.color = '';
+          fetch('/promo/check', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+            body: 'code=' + encodeURIComponent(code)
+          })
+            .then(function(r) { return r.json(); })
+            .then(function(data) {
+              if (data.valid) {
+                appliedDiscountKobo = data.discountKobo;
+                promoStatus.textContent = 'Code applied ✓';
+                promoStatus.style.color = '#1E7A3D';
+              } else {
+                appliedDiscountKobo = 0;
+                promoStatus.textContent = data.reason || 'Invalid code.';
+                promoStatus.style.color = '#A3162F';
+              }
+              recalc();
+            })
+            .catch(function() {
+              promoStatus.textContent = "Couldn't check that code, try again.";
+              promoStatus.style.color = '#A3162F';
+            });
+        });
 
         function toggleMethod() {
           var isPickup = methodSelect.value === 'pickup';

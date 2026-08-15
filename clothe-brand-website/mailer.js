@@ -120,4 +120,23 @@ function orderReceiptEmailHtml({ order, customerName }) {
   `;
 }
 
-module.exports = { sendEmail, verificationEmailHtml, orderNotificationEmailHtml, orderReceiptEmailHtml };
+const STATUS_MESSAGES = {
+  confirmed: { emoji: '✅', headline: 'Your order is confirmed', body: "We've got it and we're getting it ready." },
+  shipped: { emoji: '📦', headline: 'Your order has shipped!', body: "It's on its way to you now." },
+  cancelled: { emoji: '❌', headline: 'Your order was cancelled', body: 'If this seems wrong, just reply to this email and we\'ll sort it out.' }
+};
+
+// Sent to the customer whenever an admin changes an order's status.
+function orderStatusUpdateEmailHtml({ order, customerName, status }) {
+  const info = STATUS_MESSAGES[status] || { emoji: '📋', headline: 'Order update', body: `Your order status changed to "${status.replace('_', ' ')}".` };
+  return `
+    <div style="font-family: sans-serif; max-width: 480px; margin: 0 auto;">
+      <h2 style="color:${BRAND_COLOR};">${info.emoji} ${info.headline}</h2>
+      <p>Hi ${customerName}, ${info.body}</p>
+      ${orderRowsHtml(order)}
+      <p style="font-size:13px;color:#999;">Order reference: ${order.id}</p>
+    </div>
+  `;
+}
+
+module.exports = { sendEmail, verificationEmailHtml, orderNotificationEmailHtml, orderReceiptEmailHtml, orderStatusUpdateEmailHtml };

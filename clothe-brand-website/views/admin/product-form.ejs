@@ -26,6 +26,11 @@
         <label>Available sizes (comma separated)</label>
         <input type="text" name="sizes" value="<%= product ? product.sizes : 'S,M,L,XL' %>">
       </div>
+      <div class="field">
+        <label>Stock quantity (leave blank for unlimited)</label>
+        <input type="number" name="stock" min="0" value="<%= product && product.stock !== null && product.stock !== undefined ? product.stock : '' %>">
+        <p class="helper-note" style="margin-top:6px;">When this hits 0, the product shows as "Sold Out" and can't be added to cart.</p>
+      </div>
       <% if (product && product.image_url) { %>
         <div class="field">
           <label>Current image</label>

@@ -8,7 +8,7 @@ const multer = require('multer');
 const path = require('path');
 const cloudinary = require('cloudinary').v2;
 const db = require('./db');
-const { sendEmail, verificationEmailHtml, orderNotificationEmailHtml, orderReceiptEmailHtml } = require('./mailer');
+const { sendEmail, verificationEmailHtml, orderNotificationEmailHtml, orderReceiptEmailHtml, orderStatusUpdateEmailHtml } = require('./mailer');
 const paystack = require('./paystack');
 
 const app = express();
@@ -73,6 +73,15 @@ app.use(async (req, res, next) => {
     const symbol = currency === 'NGN' ? '₦' : currency + ' ';
     return `${symbol}${amount}`;
   };
+  // WhatsApp contact link, built from WHATSAPP_NUMBER (digits only, with
+  // country code, e.g. 2348137165157 -- no leading 0, no +, no spaces).
+  const waNumber = (process.env.WHATSAPP_NUMBER || '').replace(/[^0-9]/g, '');
+  res.locals.whatsappUrl = waNumber ? `https://wa.me/${waNumber}?text=${encodeURIComponent('Hi! I have a question about an order.')}` : null;
+  // Default social-share preview info; individual routes can override these.
+  res.locals.ogTitle = 'F.D.C Clothing Store';
+  res.locals.ogDescription = 'Shirts, tops, hoodies, and exclusive pre-order drops.';
+  res.locals.ogImage = process.env.OG_DEFAULT_IMAGE || '';
+  res.locals.ogUrl = `${baseUrl(req)}${req.originalUrl}`;
   next();
 });
 
@@ -111,6 +120,20 @@ function pickupLocation() {
 
 function findDeliveryZone(key) {
   return deliveryZones().find(z => z.key === key) || null;
+}
+
+// Called once an order is genuinely going through (fallback mode, or a
+// confirmed Paystack payment) -- decrements tracked stock and counts promo
+// code usage. Never called for abandoned/failed payment attempts.
+async function finalizeSuccessfulOrder(order, appliedPromo) {
+  for (const item of order.items) {
+    if (item.product_id) {
+      await db.products.decrementStock(item.product_id, item.quantity);
+    }
+  }
+  if (appliedPromo) {
+    await db.promoCodes.incrementUsage(appliedPromo.id);
+  }
 }
 
 async function notifyAdminOfOrder(order, customer) {
@@ -207,7 +230,10 @@ app.get('/product/:id', asyncRoute(async (req, res) => {
     alreadyWaitlisted = await db.waitlist.has(req.session.user.id, product.id);
     profileUser = await db.users.findById(req.session.user.id);
   }
-  res.render('product', { product, alreadyWaitlisted, profileUser, paystackEnabled: paystack.isConfigured(), zones: deliveryZones(), pickupLocation: pickupLocation() });
+  res.locals.ogTitle = product.name;
+  res.locals.ogDescription = (product.description || '').slice(0, 160) || res.locals.ogDescription;
+  res.locals.ogImage = product.image_url || res.locals.ogImage;
+  res.render('product', { product, alreadyWaitlisted, profileUser, paystackEnabled: paystack.isConfigured() });
 }));
 
 // =====================================================
@@ -374,11 +400,20 @@ app.post('/cart/add/:productId', requireLogin, asyncRoute(async (req, res) => {
   if (!product) return res.status(404).render('404');
   const isOrderable = product.status === 'available' || (product.status === 'unreleased' && product.allow_preorder);
   if (!isOrderable) return res.redirect('/product/' + product.id);
+  if (product.stock !== null && product.stock !== undefined && product.stock <= 0) {
+    return res.redirect('/product/' + product.id + '?soldOut=1');
+  }
 
   const { size, quantity } = req.body;
   const qty = Math.max(1, Number(quantity) || 1);
   const cart = getCart(req);
   const existing = cart.find(c => c.product_id === product.id && c.size === size);
+  const alreadyInCart = existing ? existing.quantity : 0;
+
+  if (product.stock !== null && product.stock !== undefined && (alreadyInCart + qty) > product.stock) {
+    return res.redirect('/product/' + product.id + '?stockLimit=' + product.stock);
+  }
+
   if (existing) {
     existing.quantity += qty;
   } else {
@@ -414,11 +449,25 @@ app.get('/checkout', requireVerified, asyncRoute(async (req, res) => {
   res.render('checkout', { items, itemTotalKobo, profileUser, zones: deliveryZones(), pickupLocation: pickupLocation(), paystackEnabled: paystack.isConfigured() });
 }));
 
+// Lets the checkout page validate a promo code live (via fetch) and show the
+// discount before the customer submits the whole form.
+app.post('/promo/check', requireLogin, asyncRoute(async (req, res) => {
+  const { code } = req.body;
+  const { itemTotalKobo } = await cartWithDetails(req);
+  const promo = await db.promoCodes.findByCode(code);
+  const result = db.computeDiscount(promo, itemTotalKobo);
+  res.json(result);
+}));
+
+app.get('/size-guide', (req, res) => {
+  res.render('size-guide');
+});
+
 app.post('/checkout', requireVerified, asyncRoute(async (req, res) => {
   const { items, itemTotalKobo } = await cartWithDetails(req);
   if (items.length === 0) return res.redirect('/cart');
 
-  const { delivery_method, delivery_zone, shipping_address, shipping_city, shipping_state, shipping_phone, note } = req.body;
+  const { delivery_method, delivery_zone, shipping_address, shipping_city, shipping_state, shipping_phone, note, promo_code } = req.body;
   const isPickup = delivery_method === 'pickup';
   let shipFee = 0;
   let zoneLabel = null;
@@ -428,6 +477,21 @@ app.post('/checkout', requireVerified, asyncRoute(async (req, res) => {
     const zone = findDeliveryZone(delivery_zone);
     shipFee = zone ? zone.feeKobo : fallbackZoneFeeKobo();
     zoneLabel = zone ? zone.label : null;
+  }
+
+  // Promo code (optional) -- discounts the item total only, never delivery.
+  let discountKobo = 0;
+  let appliedPromo = null;
+  if (promo_code && promo_code.trim()) {
+    const promo = await db.promoCodes.findByCode(promo_code);
+    const result = db.computeDiscount(promo, itemTotalKobo);
+    if (result.valid) {
+      discountKobo = result.discountKobo;
+      appliedPromo = promo;
+    }
+    // If invalid, we silently just don't apply it rather than blocking
+    // checkout -- the checkout page validates it first via /promo/check so
+    // this is really just a safety net against stale/tampered submissions.
   }
 
   // If every item in the cart is an unreleased pre-order item, tag the whole
@@ -449,7 +513,9 @@ app.post('/checkout', requireVerified, asyncRoute(async (req, res) => {
     note: note || '',
     item_total_kobo: itemTotalKobo,
     shipping_fee_kobo: shipFee,
-    amount_kobo: itemTotalKobo + shipFee
+    promo_code: appliedPromo ? appliedPromo.code : null,
+    discount_kobo: discountKobo,
+    amount_kobo: Math.max(0, itemTotalKobo - discountKobo) + shipFee
   });
 
   req.session.cart = []; // clear the cart now that it's become an order
@@ -458,6 +524,7 @@ app.post('/checkout', requireVerified, asyncRoute(async (req, res) => {
   // (order gets recorded, admin follows up to collect payment directly) so
   // the site keeps working while you're waiting on a Paystack account.
   if (!paystack.isConfigured()) {
+    await finalizeSuccessfulOrder(order, appliedPromo);
     await notifyAdminOfOrder(order, req.session.user);
     return res.render('order-confirmation', { order, paid: false, paystackEnabled: false });
   }
@@ -492,6 +559,8 @@ app.get('/payment/callback', asyncRoute(async (req, res) => {
     const verification = await paystack.verifyPayment(reference);
     if (verification.success && verification.amountInKobo === order.amount_kobo) {
       await db.orders.update(order.id, { status: 'confirmed' });
+      const appliedPromo = order.promo_code ? await db.promoCodes.findByCode(order.promo_code) : null;
+      await finalizeSuccessfulOrder(order, appliedPromo);
       const customer = await db.users.findById(order.user_id);
       await notifyAdminOfOrder(order, customer);
       if (customer) {
@@ -573,7 +642,7 @@ app.get('/admin/products/new', requireAdmin, (req, res) => {
 });
 
 app.post('/admin/products', requireAdmin, upload.single('image'), asyncRoute(async (req, res) => {
-  const { name, description, price, currency, status, allow_preorder, sizes, image_url } = req.body;
+  const { name, description, price, currency, status, allow_preorder, sizes, image_url, stock } = req.body;
   const uploadedUrl = await uploadImageIfPresent(req.file);
   const finalImage = uploadedUrl || image_url || '';
   await db.products.create({
@@ -583,7 +652,8 @@ app.post('/admin/products', requireAdmin, upload.single('image'), asyncRoute(asy
     image_url: finalImage,
     status,
     allow_preorder: status === 'unreleased' && allow_preorder ? 1 : 0,
-    sizes: sizes || 'S,M,L,XL'
+    sizes: sizes || 'S,M,L,XL',
+    stock: stock !== undefined && stock !== '' ? Math.max(0, parseInt(stock, 10) || 0) : null
   });
   res.redirect('/admin');
 }));
@@ -595,7 +665,7 @@ app.get('/admin/products/:id/edit', requireAdmin, asyncRoute(async (req, res) =>
 }));
 
 app.put('/admin/products/:id', requireAdmin, upload.single('image'), asyncRoute(async (req, res) => {
-  const { name, description, price, currency, status, allow_preorder, sizes, image_url } = req.body;
+  const { name, description, price, currency, status, allow_preorder, sizes, image_url, stock } = req.body;
   const existing = await db.products.find(req.params.id);
   const uploadedUrl = await uploadImageIfPresent(req.file);
   const finalImage = uploadedUrl || image_url || existing.image_url;
@@ -606,7 +676,8 @@ app.put('/admin/products/:id', requireAdmin, upload.single('image'), asyncRoute(
     image_url: finalImage,
     status,
     allow_preorder: status === 'unreleased' && allow_preorder ? 1 : 0,
-    sizes: sizes || 'S,M,L,XL'
+    sizes: sizes || 'S,M,L,XL',
+    stock: stock !== undefined && stock !== '' ? Math.max(0, parseInt(stock, 10) || 0) : null
   });
   res.redirect('/admin');
 }));
@@ -628,7 +699,24 @@ app.get('/admin/orders', requireAdmin, asyncRoute(async (req, res) => {
 }));
 
 app.put('/admin/orders/:id/status', requireAdmin, asyncRoute(async (req, res) => {
-  await db.orders.updateStatus(req.params.id, req.body.status);
+  const { status } = req.body;
+  const order = await db.orders.find(req.params.id);
+  await db.orders.updateStatus(req.params.id, status);
+  if (order && order.status !== status) {
+    const customer = await db.users.findById(order.user_id);
+    if (customer) {
+      try {
+        await sendEmail({
+          to: customer.email,
+          toName: customer.name,
+          subject: `Order update: ${status.replace('_', ' ')}`,
+          html: orderStatusUpdateEmailHtml({ order: { ...order, status }, customerName: customer.name, status })
+        });
+      } catch (e) {
+        console.error('Failed to send order status update email:', e.message);
+      }
+    }
+  }
   res.redirect('/admin/orders');
 }));
 
@@ -641,6 +729,31 @@ app.get('/admin/waitlist', requireAdmin, asyncRoute(async (req, res) => {
     customer_email: w.customer ? w.customer.email : ''
   }));
   res.render('admin/waitlist', { entries });
+}));
+
+app.get('/admin/promo-codes', requireAdmin, asyncRoute(async (req, res) => {
+  res.render('admin/promo-codes', { codes: await db.promoCodes.all(), error: null, success: false });
+}));
+
+app.post('/admin/promo-codes', requireAdmin, asyncRoute(async (req, res) => {
+  const { code, type, value, max_uses, expires_at } = req.body;
+  if (!code || !type || !value || isNaN(parseFloat(value))) {
+    return res.render('admin/promo-codes', { codes: await db.promoCodes.all(), error: 'Code, type, and a valid value are required.', success: false });
+  }
+  const existing = await db.promoCodes.findByCode(code);
+  if (existing) {
+    return res.render('admin/promo-codes', { codes: await db.promoCodes.all(), error: 'A code with this name already exists.', success: false });
+  }
+  // Flat discounts are entered by the admin in Naira, but stored/compared in
+  // kobo (matching how prices are stored everywhere else in the app).
+  const storedValue = type === 'flat' ? Math.round(parseFloat(value) * 100) : parseFloat(value);
+  await db.promoCodes.create({ code, type, value: storedValue, max_uses, expires_at: expires_at || null });
+  res.render('admin/promo-codes', { codes: await db.promoCodes.all(), error: null, success: true });
+}));
+
+app.put('/admin/promo-codes/:id/toggle', requireAdmin, asyncRoute(async (req, res) => {
+  await db.promoCodes.setActive(req.params.id, req.body.active === '1');
+  res.redirect('/admin/promo-codes');
 }));
 
 // ---- Admin account security: change password, manage admin accounts ----
