@@ -73,10 +73,24 @@ app.use(async (req, res, next) => {
     const symbol = currency === 'NGN' ? '₦' : currency + ' ';
     return `${symbol}${amount}`;
   };
-  // WhatsApp contact link, built from WHATSAPP_NUMBER (digits only, with
-  // country code, e.g. 2348137165157 -- no leading 0, no +, no spaces).
-  const waNumber = (process.env.WHATSAPP_NUMBER || '').replace(/[^0-9]/g, '');
-  res.locals.whatsappUrl = waNumber ? `https://wa.me/${waNumber}?text=${encodeURIComponent('Hi! I have a question about an order.')}` : null;
+  // WhatsApp contact(s). Supports either:
+  //   WHATSAPP_NUMBER=2348137165157                          (single, unlabeled)
+  //   WHATSAPP_NUMBERS=Sales:2348137165157,Support:234812...  (multiple, labeled)
+  const waMessage = encodeURIComponent('Hi! I have a question about an order.');
+  const rawMulti = process.env.WHATSAPP_NUMBERS || '';
+  let whatsappContacts = [];
+  if (rawMulti) {
+    whatsappContacts = rawMulti.split(',').map(pair => {
+      const [label, num] = pair.split(':');
+      const digits = (num || label || '').replace(/[^0-9]/g, ''); // handles "Label:number" or just "number"
+      const cleanLabel = num ? label.trim() : 'WhatsApp';
+      return digits ? { label: cleanLabel, url: `https://wa.me/${digits}?text=${waMessage}` } : null;
+    }).filter(Boolean);
+  } else {
+    const digits = (process.env.WHATSAPP_NUMBER || '').replace(/[^0-9]/g, '');
+    if (digits) whatsappContacts = [{ label: 'WhatsApp', url: `https://wa.me/${digits}?text=${waMessage}` }];
+  }
+  res.locals.whatsappContacts = whatsappContacts;
   // Default social-share preview info; individual routes can override these.
   res.locals.ogTitle = 'F.D.C Clothing Store';
   res.locals.ogDescription = 'Shirts, tops, hoodies, and exclusive pre-order drops.';
@@ -213,6 +227,35 @@ const requireVerified = asyncRoute(async (req, res, next) => {
 app.get('/', asyncRoute(async (req, res) => {
   res.render('home', { available: await db.products.available(), unreleased: await db.products.unreleased() });
 }));
+
+app.get('/sitemap.xml', asyncRoute(async (req, res) => {
+  const base = baseUrl(req);
+  const products = await db.products.all();
+  const staticUrls = ['/', '/size-guide', '/policies'];
+  const productUrls = products.map(p => `/product/${p.id}`);
+  const allUrls = [...staticUrls, ...productUrls];
+
+  const xml = `<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+${allUrls.map(path => `  <url><loc>${base}${path}</loc></url>`).join('\n')}
+</urlset>`;
+
+  res.setHeader('Content-Type', 'application/xml');
+  res.send(xml);
+}));
+
+app.get('/robots.txt', (req, res) => {
+  res.setHeader('Content-Type', 'text/plain');
+  res.send(`User-agent: *
+Allow: /
+Disallow: /admin
+Disallow: /cart
+Disallow: /checkout
+Disallow: /my-orders
+Disallow: /profile
+
+Sitemap: ${baseUrl(req)}/sitemap.xml`);
+});
 
 app.get('/policies', (req, res) => {
   res.render('policies', {
@@ -629,6 +672,42 @@ app.get('/my-orders', requireLogin, asyncRoute(async (req, res) => {
 app.get('/admin/login', (req, res) => res.redirect('/login?redirectTo=/admin'));
 app.post('/admin/login', (req, res) => res.redirect(307, '/login'));
 
+app.get('/admin/sales', requireAdmin, asyncRoute(async (req, res) => {
+  const orders = await db.orders.allWithDetails();
+  const revenueOrders = orders.filter(o => o.status === 'confirmed' || o.status === 'shipped');
+
+  const totalRevenueKobo = revenueOrders.reduce((sum, o) => sum + (o.amount_kobo || 0), 0);
+
+  const now = new Date();
+  const monthRevenueKobo = revenueOrders
+    .filter(o => {
+      const d = new Date(o.created_at);
+      return d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth();
+    })
+    .reduce((sum, o) => sum + (o.amount_kobo || 0), 0);
+
+  const avgOrderKobo = revenueOrders.length ? Math.round(totalRevenueKobo / revenueOrders.length) : 0;
+
+  const productSales = {};
+  revenueOrders.forEach(o => {
+    (o.items || []).forEach(item => {
+      productSales[item.product_name] = (productSales[item.product_name] || 0) + item.quantity;
+    });
+  });
+  const topProducts = Object.entries(productSales).sort((a, b) => b[1] - a[1]).slice(0, 5);
+
+  res.render('admin/sales', {
+    totalRevenueKobo,
+    monthRevenueKobo,
+    avgOrderKobo,
+    paidOrderCount: revenueOrders.length,
+    totalOrderCount: orders.length,
+    pendingCount: orders.filter(o => o.status === 'pending_payment').length,
+    cancelledCount: orders.filter(o => o.status === 'cancelled').length,
+    topProducts
+  });
+}));
+
 app.get('/admin', requireAdmin, asyncRoute(async (req, res) => {
   res.render('admin/dashboard', {
     products: await db.products.all(),
@@ -696,6 +775,44 @@ app.get('/admin/orders', requireAdmin, asyncRoute(async (req, res) => {
     customer_phone: o.customer ? o.customer.phone : ''
   }));
   res.render('admin/orders', { orders });
+}));
+
+app.get('/admin/orders/export.csv', requireAdmin, asyncRoute(async (req, res) => {
+  const orders = await db.orders.allWithDetails();
+
+  const escapeCsv = (value) => {
+    const s = String(value === undefined || value === null ? '' : value);
+    return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+  };
+
+  const header = ['Order ID', 'Customer Name', 'Email', 'Phone', 'Items', 'Type', 'Status', 'Items Total (₦)', 'Delivery Fee (₦)', 'Discount (₦)', 'Total (₦)', 'Delivery Method', 'Zone', 'Address', 'City', 'State', 'Placed At'];
+  const rows = orders.map(o => {
+    const itemsStr = (o.items || []).map(i => `${i.product_name} (${i.size || '-'} x${i.quantity})`).join('; ');
+    return [
+      o.id,
+      o.customer ? o.customer.name : '(deleted user)',
+      o.customer ? o.customer.email : '',
+      o.shipping_phone || '',
+      itemsStr,
+      o.type,
+      o.status,
+      ((o.item_total_kobo || 0) / 100).toFixed(2),
+      ((o.shipping_fee_kobo || 0) / 100).toFixed(2),
+      ((o.discount_kobo || 0) / 100).toFixed(2),
+      ((o.amount_kobo || 0) / 100).toFixed(2),
+      o.delivery_method || '',
+      o.delivery_zone || '',
+      o.shipping_address || '',
+      o.shipping_city || '',
+      o.shipping_state || '',
+      o.created_at
+    ];
+  });
+
+  const csv = [header, ...rows].map(row => row.map(escapeCsv).join(',')).join('\n');
+  res.setHeader('Content-Type', 'text/csv');
+  res.setHeader('Content-Disposition', `attachment; filename="orders-${new Date().toISOString().slice(0, 10)}.csv"`);
+  res.send(csv);
 }));
 
 app.put('/admin/orders/:id/status', requireAdmin, asyncRoute(async (req, res) => {

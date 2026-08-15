@@ -3,7 +3,10 @@
 <div class="admin-shell">
   <%- include('./partials/sidebar', { active: 'orders' }) %>
   <div class="admin-main">
-    <div class="section-head"><h2>Orders</h2></div>
+    <div class="section-head">
+      <h2>Orders</h2>
+      <a href="/admin/orders/export.csv" class="btn btn-secondary btn-small">⬇ Export CSV</a>
+    </div>
     <% if (orders.length === 0) { %>
       <div class="empty-state">No orders yet.</div>
     <% } else { %>

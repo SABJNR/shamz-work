@@ -1,0 +1,59 @@
+<%- include('../partials/header', { title: 'Sales Dashboard' }) %>
+
+<div class="admin-shell">
+  <%- include('./partials/sidebar', { active: 'sales' }) %>
+  <div class="admin-main">
+    <div class="section-head"><h2>Sales dashboard</h2></div>
+
+    <div class="stat-row">
+      <div class="stat-box">
+        <div class="num"><%= formatPrice(totalRevenueKobo) %></div>
+        <div class="label">Total revenue (paid orders)</div>
+      </div>
+      <div class="stat-box">
+        <div class="num"><%= formatPrice(monthRevenueKobo) %></div>
+        <div class="label">This month</div>
+      </div>
+      <div class="stat-box">
+        <div class="num"><%= formatPrice(avgOrderKobo) %></div>
+        <div class="label">Average order value</div>
+      </div>
+    </div>
+
+    <div class="stat-row">
+      <div class="stat-box">
+        <div class="num"><%= paidOrderCount %></div>
+        <div class="label">Paid orders</div>
+      </div>
+      <div class="stat-box">
+        <div class="num"><%= pendingCount %></div>
+        <div class="label">Pending payment</div>
+      </div>
+      <div class="stat-box">
+        <div class="num"><%= cancelledCount %></div>
+        <div class="label">Cancelled</div>
+      </div>
+      <div class="stat-box">
+        <div class="num"><%= totalOrderCount %></div>
+        <div class="label">Total orders (all-time)</div>
+      </div>
+    </div>
+
+    <div class="section-head" style="margin-top:20px;"><h2 style="font-size:20px;">Top-selling items</h2></div>
+    <% if (topProducts.length === 0) { %>
+      <div class="empty-state">No paid orders yet — sales data will show up here once you do.</div>
+    <% } else { %>
+      <table>
+        <thead><tr><th>Product</th><th>Units sold</th></tr></thead>
+        <tbody>
+          <% topProducts.forEach(([name, qty]) => { %>
+            <tr><td><%= name %></td><td><%= qty %></td></tr>
+          <% }) %>
+        </tbody>
+      </table>
+    <% } %>
+    <p class="helper-note" style="margin-top:16px;">Revenue figures only count orders marked Confirmed or Shipped — pending and cancelled orders aren't included.</p>
+  </div>
+</div>
+
+<%- include('../partials/footer') %>

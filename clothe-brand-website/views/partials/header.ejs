@@ -46,9 +46,23 @@
       </form>
     </div>
   <% } %>
-  <% if (whatsappUrl) { %>
-    <a href="<%= whatsappUrl %>" target="_blank" rel="noopener" title="Chat with us on WhatsApp"
+  <% if (whatsappContacts && whatsappContacts.length === 1) { %>
+    <a href="<%= whatsappContacts[0].url %>" target="_blank" rel="noopener" title="Chat with us on WhatsApp"
        style="position:fixed;bottom:22px;right:22px;width:56px;height:56px;background:#25D366;border-radius:50%;display:flex;align-items:center;justify-content:center;box-shadow:0 4px 14px rgba(0,0,0,0.25);z-index:100;">
       <svg viewBox="0 0 24 24" width="28" height="28" fill="#fff"><path d="M12.04 2C6.58 2 2.13 6.45 2.13 11.91c0 1.75.46 3.45 1.32 4.95L2 22l5.28-1.39c1.45.79 3.08 1.21 4.76 1.21h.01c5.46 0 9.9-4.45 9.9-9.91C21.96 6.45 17.5 2 12.04 2zm5.85 14.05c-.25.7-1.23 1.29-2.02 1.46-.53.11-1.23.2-3.58-.77-2.87-1.19-4.71-4.1-4.85-4.29-.14-.19-1.16-1.55-1.16-2.95 0-1.4.73-2.09 1-2.38.25-.27.55-.34.73-.34.19 0 .37 0 .53.01.17.01.4-.06.62.48.25.6.85 2.07.92 2.22.07.15.12.32.02.51-.1.19-.15.31-.3.48-.15.17-.31.37-.44.5-.15.14-.3.3-.13.6.17.3.75 1.24 1.61 2 1.11.98 2.04 1.29 2.34 1.43.3.14.48.12.65-.07.17-.19.73-.85.93-1.14.19-.29.39-.24.65-.14.27.1 1.7.8 1.99.95.29.15.48.22.55.34.07.13.07.75-.18 1.45z"/></svg>
     </a>
+  <% } else if (whatsappContacts && whatsappContacts.length > 1) { %>
+    <div style="position:fixed;bottom:22px;right:22px;z-index:100;text-align:right;">
+      <div id="waMenu" style="display:none;background:#fff;border-radius:10px;box-shadow:0 6px 20px rgba(0,0,0,0.18);padding:8px;margin-bottom:12px;min-width:180px;">
+        <% whatsappContacts.forEach(c => { %>
+          <a href="<%= c.url %>" target="_blank" rel="noopener" style="display:block;padding:10px 14px;color:#141414;font-size:14px;font-weight:500;border-radius:6px;">
+            💬 <%= c.label %>
+          </a>
+        <% }) %>
+      </div>
+      <button type="button" onclick="var m=document.getElementById('waMenu');m.style.display=m.style.display==='none'?'block':'none';"
+              style="width:56px;height:56px;background:#25D366;border:none;border-radius:50%;display:flex;align-items:center;justify-content:center;box-shadow:0 4px 14px rgba(0,0,0,0.25);cursor:pointer;">
+        <svg viewBox="0 0 24 24" width="28" height="28" fill="#fff"><path d="M12.04 2C6.58 2 2.13 6.45 2.13 11.91c0 1.75.46 3.45 1.32 4.95L2 22l5.28-1.39c1.45.79 3.08 1.21 4.76 1.21h.01c5.46 0 9.9-4.45 9.9-9.91C21.96 6.45 17.5 2 12.04 2zm5.85 14.05c-.25.7-1.23 1.29-2.02 1.46-.53.11-1.23.2-3.58-.77-2.87-1.19-4.71-4.1-4.85-4.29-.14-.19-1.16-1.55-1.16-2.95 0-1.4.73-2.09 1-2.38.25-.27.55-.34.73-.34.19 0 .37 0 .53.01.17.01.4-.06.62.48.25.6.85 2.07.92 2.22.07.15.12.32.02.51-.1.19-.15.31-.3.48-.15.17-.31.37-.44.5-.15.14-.3.3-.13.6.17.3.75 1.24 1.61 2 1.11.98 2.04 1.29 2.34 1.43.3.14.48.12.65-.07.17-.19.73-.85.93-1.14.19-.29.39-.24.65-.14.27.1 1.7.8 1.99.95.29.15.48.22.55.34.07.13.07.75-.18 1.45z"/></svg>
+      </button>
+    </div>
   <% } %>
