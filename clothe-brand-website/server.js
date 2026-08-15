@@ -6,6 +6,7 @@ const methodOverride = require('method-override');
 const bcrypt = require('bcryptjs');
 const multer = require('multer');
 const path = require('path');
+const crypto = require('crypto');
 const cloudinary = require('cloudinary').v2;
 const db = require('./db');
 const { sendEmail, verificationEmailHtml, orderNotificationEmailHtml, orderReceiptEmailHtml, orderStatusUpdateEmailHtml } = require('./mailer');
@@ -29,7 +30,9 @@ app.set('views', path.join(__dirname, 'views'));
 
 // ---- Middleware ----
 app.use(express.urlencoded({ extended: true }));
-app.use(express.json());
+app.use(express.json({
+  verify: (req, res, buf) => { req.rawBody = buf; } // needed to verify Paystack webhook signatures
+}));
 app.use(methodOverride('_method'));
 app.use('/public', express.static(path.join(__dirname, 'public')));
 
@@ -591,6 +594,36 @@ app.post('/checkout', requireVerified, asyncRoute(async (req, res) => {
 // payment. We NEVER trust this redirect alone -- we always re-verify the
 // payment status directly with Paystack's servers before treating an order
 // as paid.
+// The single place an order actually gets marked paid. Called from two
+// places: the browser redirect after payment, AND the Paystack webhook
+// (which fires independently of the browser, so payment still gets
+// recorded even if the customer's connection drops before the redirect).
+// Idempotent: safe to call twice for the same order (e.g. if both the
+// redirect and the webhook arrive) -- only does the paid-order work once.
+async function confirmOrderPaid(order) {
+  if (order.status === 'confirmed' || order.status === 'shipped') {
+    return { alreadyProcessed: true, order };
+  }
+  await db.orders.update(order.id, { status: 'confirmed' });
+  const appliedPromo = order.promo_code ? await db.promoCodes.findByCode(order.promo_code) : null;
+  await finalizeSuccessfulOrder(order, appliedPromo);
+  const customer = await db.users.findById(order.user_id);
+  await notifyAdminOfOrder(order, customer);
+  if (customer) {
+    try {
+      await sendEmail({
+        to: customer.email,
+        toName: customer.name,
+        subject: `Order confirmed — ${order.items.length} item${order.items.length > 1 ? 's' : ''}`,
+        html: orderReceiptEmailHtml({ order, customerName: customer.name })
+      });
+    } catch (e) {
+      console.error('Failed to send customer receipt:', e.message);
+    }
+  }
+  return { alreadyProcessed: false, order };
+}
+
 app.get('/payment/callback', asyncRoute(async (req, res) => {
   const { reference } = req.query;
   const order = reference ? await db.orders.find(reference) : null;
@@ -598,26 +631,17 @@ app.get('/payment/callback', asyncRoute(async (req, res) => {
     return res.render('payment-result', { success: false, order: null });
   }
 
+  // If the webhook already confirmed this order (it can arrive before the
+  // customer's browser even finishes redirecting back), just show success
+  // without re-verifying -- no need to call Paystack again.
+  if (order.status === 'confirmed' || order.status === 'shipped') {
+    return res.render('order-confirmation', { order, paid: true, paystackEnabled: true });
+  }
+
   try {
     const verification = await paystack.verifyPayment(reference);
     if (verification.success && verification.amountInKobo === order.amount_kobo) {
-      await db.orders.update(order.id, { status: 'confirmed' });
-      const appliedPromo = order.promo_code ? await db.promoCodes.findByCode(order.promo_code) : null;
-      await finalizeSuccessfulOrder(order, appliedPromo);
-      const customer = await db.users.findById(order.user_id);
-      await notifyAdminOfOrder(order, customer);
-      if (customer) {
-        try {
-          await sendEmail({
-            to: customer.email,
-            toName: customer.name,
-            subject: `Order confirmed — ${order.items.length} item${order.items.length > 1 ? 's' : ''}`,
-            html: orderReceiptEmailHtml({ order, customerName: customer.name })
-          });
-        } catch (e) {
-          console.error('Failed to send customer receipt:', e.message);
-        }
-      }
+      await confirmOrderPaid(order);
       return res.render('order-confirmation', { order, paid: true, paystackEnabled: true });
     }
     await db.orders.update(order.id, { status: 'cancelled' });
@@ -626,6 +650,50 @@ app.get('/payment/callback', asyncRoute(async (req, res) => {
     console.error('Payment verification failed:', e.message);
     return res.render('payment-result', { success: false, order });
   }
+}));
+
+// Paystack calls this directly from their own servers the moment a payment
+// succeeds -- independent of the customer's browser. This is what protects
+// against a customer's connection dropping right after paying: even if they
+// never make it back to /payment/callback, this webhook still confirms the
+// order and triggers stock/emails/etc.
+app.post('/webhooks/paystack', asyncRoute(async (req, res) => {
+  if (!paystack.isConfigured()) return res.status(200).end(); // nothing to verify against
+
+  const signature = req.headers['x-paystack-signature'];
+  const expectedSignature = crypto
+    .createHmac('sha512', process.env.PAYSTACK_SECRET_KEY)
+    .update(req.rawBody)
+    .digest('hex');
+
+  // Reject anything that isn't genuinely signed by Paystack -- this is a
+  // public URL, so without this check anyone could fake a "payment
+  // succeeded" call.
+  if (!signature || signature !== expectedSignature) {
+    console.error('Webhook signature mismatch -- ignoring request.');
+    return res.status(401).end();
+  }
+
+  const event = req.body;
+  if (event && event.event === 'charge.success') {
+    const reference = event.data && event.data.reference;
+    const order = reference ? await db.orders.find(reference) : null;
+    if (order && order.status !== 'confirmed' && order.status !== 'shipped') {
+      try {
+        // Re-verify independently with Paystack rather than fully trusting
+        // the webhook payload -- belt and suspenders.
+        const verification = await paystack.verifyPayment(reference);
+        if (verification.success && verification.amountInKobo === order.amount_kobo) {
+          await confirmOrderPaid(order);
+        }
+      } catch (e) {
+        console.error('Webhook payment verification failed:', e.message);
+      }
+    }
+  }
+
+  // Always acknowledge receipt quickly so Paystack doesn't keep retrying.
+  res.status(200).end();
 }));
 
 // Lets a customer retry payment on an order that's still unpaid (e.g. they
