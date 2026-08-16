@@ -670,24 +670,33 @@ app.post('/webhooks/paystack', asyncRoute(async (req, res) => {
   // public URL, so without this check anyone could fake a "payment
   // succeeded" call.
   if (!signature || signature !== expectedSignature) {
-    console.error('Webhook signature mismatch -- ignoring request.');
+    console.error('[webhook] Signature mismatch -- ignoring request.');
     return res.status(401).end();
   }
 
   const event = req.body;
+  console.log(`[webhook] Received verified Paystack event: ${event && event.event}`);
+
   if (event && event.event === 'charge.success') {
     const reference = event.data && event.data.reference;
     const order = reference ? await db.orders.find(reference) : null;
-    if (order && order.status !== 'confirmed' && order.status !== 'shipped') {
+    if (!order) {
+      console.error(`[webhook] charge.success for unknown order reference: ${reference}`);
+    } else if (order.status === 'confirmed' || order.status === 'shipped') {
+      console.log(`[webhook] Order ${order.id} already confirmed -- skipping (likely already handled by browser redirect).`);
+    } else {
       try {
         // Re-verify independently with Paystack rather than fully trusting
         // the webhook payload -- belt and suspenders.
         const verification = await paystack.verifyPayment(reference);
         if (verification.success && verification.amountInKobo === order.amount_kobo) {
           await confirmOrderPaid(order);
+          console.log(`[webhook] Order ${order.id} confirmed via webhook ✅`);
+        } else {
+          console.error(`[webhook] Verification mismatch for order ${order.id} -- not confirming.`);
         }
       } catch (e) {
-        console.error('Webhook payment verification failed:', e.message);
+        console.error('[webhook] Payment verification failed:', e.message);
       }
     }
   }
