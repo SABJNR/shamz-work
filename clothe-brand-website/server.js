@@ -97,7 +97,7 @@ app.use(async (req, res, next) => {
   // Default social-share preview info; individual routes can override these.
   res.locals.ogTitle = 'F.D.C Clothing Store';
   res.locals.ogDescription = 'Shirts, tops, hoodies, and exclusive pre-order drops.';
-  res.locals.ogImage = process.env.OG_DEFAULT_IMAGE || '';
+  res.locals.ogImage = process.env.OG_DEFAULT_IMAGE || `${baseUrl(req)}/public/images/logo-og.jpg`;
   res.locals.ogUrl = `${baseUrl(req)}${req.originalUrl}`;
   next();
 });
